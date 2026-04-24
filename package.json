@@ -1,0 +1,28 @@
+{
+  "name": "signaldesk",
+  "private": true,
+  "version": "0.1.0",
+  "description": "SignalDesk — AI-powered trading assistant for tokenized US stocks on Solana",
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter=@signaldesk/web --filter=@signaldesk/ws-server run dev",
+    "dev:web": "pnpm --filter @signaldesk/web dev",
+    "dev:ws": "pnpm --filter @signaldesk/ws-server dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "db:push": "pnpm --filter @signaldesk/web exec prisma db push",
+    "db:generate": "pnpm --filter @signaldesk/web exec prisma generate",
+    "db:studio": "pnpm --filter @signaldesk/web exec prisma studio",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "prettier": "^3.4.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

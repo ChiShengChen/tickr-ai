@@ -1,0 +1,87 @@
+// SignalDesk — shared Prisma schema (Neon Postgres)
+// Ships the five tables from the bootstrap spec: users, signals, approvals,
+// trades, positions.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String     @id @default(cuid())
+  walletAddress String     @unique
+  createdAt     DateTime   @default(now())
+  approvals     Approval[]
+  trades        Trade[]
+  positions     Position[]
+}
+
+model Signal {
+  id            String       @id @default(cuid())
+  ticker        String
+  action        SignalAction
+  confidence    Float
+  rationale     String       @db.Text
+  ttlSeconds    Int
+  priceAtSignal Float
+  indicators    Json
+  createdAt     DateTime     @default(now())
+  expiresAt     DateTime
+  approvals     Approval[]
+  trades        Trade[]
+
+  @@index([createdAt])
+  @@index([ticker, createdAt])
+}
+
+model Approval {
+  id         String   @id @default(cuid())
+  userId     String
+  signalId   String
+  decision   Boolean
+  decidedAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+  signal     Signal   @relation(fields: [signalId], references: [id])
+
+  @@unique([userId, signalId])
+}
+
+model Trade {
+  id             String   @id @default(cuid())
+  userId         String
+  signalId       String?
+  ticker         String
+  side           String
+  amountUsd      Float
+  tokenAmount    Float
+  executionPrice Float
+  txSignature    String   @unique
+  status         String
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id])
+  signal         Signal?  @relation(fields: [signalId], references: [id])
+
+  @@index([userId, createdAt])
+}
+
+model Position {
+  id          String   @id @default(cuid())
+  userId      String
+  ticker      String
+  tokenAmount Float
+  avgCost     Float
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, ticker])
+}
+
+enum SignalAction {
+  BUY
+  SELL
+  HOLD
+}

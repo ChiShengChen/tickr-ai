@@ -1,0 +1,110 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-bg: #0b0d12;
+  --color-bg-muted: #12151d;
+  --color-panel: #181c26;
+  --color-panel-2: #1f2433;
+  --color-border: #262b3a;
+  --color-fg: #e8ecf3;
+  --color-fg-muted: #9099ad;
+  --color-accent: #7c5cff;
+  --color-accent-strong: #a089ff;
+  --color-buy: #22c55e;
+  --color-sell: #ef4444;
+  --color-warn: #f59e0b;
+}
+
+/* solana wallet adapter UI defaults need to pick up the dark palette */
+@import '@solana/wallet-adapter-react-ui/styles.css';
+
+html,
+body {
+  height: 100%;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Simple utility primitives so bootstrap pages can look OK without shadcn yet. */
+.card {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  transition:
+    transform 120ms ease,
+    background 120ms ease,
+    opacity 120ms ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.btn:active {
+  transform: scale(0.98);
+}
+.btn-primary {
+  background: var(--color-accent);
+  color: white;
+}
+.btn-primary:hover {
+  background: var(--color-accent-strong);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--color-fg);
+  border-color: var(--color-border);
+}
+.btn-ghost:hover {
+  background: var(--color-bg-muted);
+}
+.btn-buy {
+  background: var(--color-buy);
+  color: #04210f;
+}
+.btn-sell {
+  background: var(--color-sell);
+  color: #2b0505;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.badge-buy {
+  background: color-mix(in srgb, var(--color-buy) 20%, transparent);
+  color: var(--color-buy);
+}
+.badge-sell {
+  background: color-mix(in srgb, var(--color-sell) 20%, transparent);
+  color: var(--color-sell);
+}
+.badge-hold {
+  background: color-mix(in srgb, var(--color-fg-muted) 25%, transparent);
+  color: var(--color-fg-muted);
+}

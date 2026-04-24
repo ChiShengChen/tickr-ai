@@ -1,0 +1,151 @@
+import { randomUUID } from 'node:crypto';
+import {
+  BARE_TICKERS,
+  MIN_ACTIONABLE_CONFIDENCE,
+  SIGNAL_TTL_DEFAULT,
+  WsServerEvents,
+  bareToXStock,
+  type BareTicker,
+  type IndicatorSnapshot,
+  type Signal,
+} from '@signaldesk/shared';
+import type { Server as IoServer } from 'socket.io';
+import { cacheSignal } from '../cache/index.js';
+import { persistSignal } from '../db/index.js';
+import { env } from '../env.js';
+import { getHistoricalBars } from '../pyth/benchmarks.js';
+import { evaluateFreshness, getLatestPrice } from '../pyth/index.js';
+import { computeIndicators, type IndicatorResult } from './indicators.js';
+import { generateLlmSignal } from './llm.js';
+
+function toIndicatorSnapshot(r: IndicatorResult): IndicatorSnapshot {
+  return {
+    rsi: r.rsi14,
+    macd: { macd: r.macd.macd, signal: r.macd.signal, histogram: r.macd.histogram },
+    ma20: r.ma20,
+    ma50: r.ma50,
+  };
+}
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+interface GenerateOptions {
+  ticker?: BareTicker;
+  forceEmit?: boolean; // bypass MIN_ACTIONABLE_CONFIDENCE / HOLD filter
+}
+
+/**
+ * Pulls real Pyth + bars + indicators + LLM for a ticker, persists, and returns
+ * the constructed Signal. Throws if upstream Pyth fails so callers can decide
+ * whether to skip or surface.
+ */
+export async function generateSignal(opts: GenerateOptions = {}): Promise<Signal | null> {
+  const ticker = opts.ticker ?? pickRandomTicker();
+
+  const snap = await getLatestPrice(ticker);
+  if (!snap) {
+    console.warn(`[gen] ${ticker} no Pyth snapshot`);
+    return null;
+  }
+  const verdict = evaluateFreshness(snap, { bypass: env.BYPASS_MARKET_HOURS });
+  if (!verdict.fresh) {
+    console.log(`[gen] ${ticker} skipped: ${verdict.reason}`);
+    return null;
+  }
+
+  const bars = await getHistoricalBars(ticker, '5', 24);
+  if (bars.length < 50) {
+    console.warn(`[gen] ${ticker} insufficient bars (${bars.length} < 50)`);
+    return null;
+  }
+
+  const indicators = await computeIndicators(bars);
+
+  const llm = await generateLlmSignal({
+    ticker,
+    currentPrice: snap.price,
+    bars,
+    indicators,
+  });
+
+  if (
+    !opts.forceEmit &&
+    (llm.signal.action === 'HOLD' || llm.signal.confidence < MIN_ACTIONABLE_CONFIDENCE)
+  ) {
+    console.log(
+      `[gen] ${ticker} not actionable: ${llm.signal.action} conf=${llm.signal.confidence.toFixed(2)}${llm.degraded ? ' (degraded)' : ''}`,
+    );
+    return null;
+  }
+
+  const now = Date.now();
+  const ttl = llm.signal.ttl_seconds ?? SIGNAL_TTL_DEFAULT;
+  const signal: Signal = {
+    id: randomUUID(),
+    ticker: bareToXStock(ticker),
+    action: llm.signal.action,
+    confidence: llm.signal.confidence,
+    rationale: llm.signal.rationale,
+    ttlSeconds: ttl,
+    priceAtSignal: snap.price,
+    indicators: toIndicatorSnapshot(indicators),
+    createdAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + ttl * 1000).toISOString(),
+    degraded: llm.degraded,
+  };
+
+  await Promise.all([cacheSignal(signal), persistSignal(signal)]);
+  return signal;
+}
+
+export async function emitSignal(io: IoServer, ticker?: BareTicker): Promise<Signal | null> {
+  const signal = await generateSignal({ ticker });
+  if (!signal) return null;
+  io.emit(WsServerEvents.SignalNew, signal);
+  console.log(
+    `[signal] emitted ${signal.ticker} ${signal.action} conf=${signal.confidence.toFixed(2)}${signal.degraded ? ' (degraded)' : ''} id=${signal.id}`,
+  );
+  return signal;
+}
+
+function pickRandomTicker(): BareTicker {
+  const idx = Math.floor(Math.random() * BARE_TICKERS.length);
+  return BARE_TICKERS[idx] ?? 'AAPL';
+}
+
+/**
+ * Long-running loop that walks the full ticker list every `intervalSeconds`.
+ * Tickers are processed sequentially with `staggerSeconds` between each call
+ * so we don't burst Hermes / Anthropic.
+ */
+export function startSignalLoop(io: IoServer): () => void {
+  const intervalSeconds = env.SIGNAL_INTERVAL_SECONDS;
+  const staggerSeconds = env.TICKER_STAGGER_SECONDS;
+  let stopped = false;
+
+  async function tick() {
+    for (const ticker of BARE_TICKERS) {
+      if (stopped) return;
+      try {
+        await emitSignal(io, ticker);
+      } catch (err) {
+        console.warn(`[gen] ${ticker} cycle failed`, err);
+      }
+      if (staggerSeconds > 0) await sleep(staggerSeconds * 1000);
+    }
+  }
+
+  console.log(
+    `[signal] loop running interval=${intervalSeconds}s stagger=${staggerSeconds}s tickers=${BARE_TICKERS.length}`,
+  );
+  // Kick off immediately, then every intervalSeconds.
+  void tick();
+  const handle = setInterval(() => {
+    void tick();
+  }, intervalSeconds * 1000);
+
+  return () => {
+    stopped = true;
+    clearInterval(handle);
+  };
+}

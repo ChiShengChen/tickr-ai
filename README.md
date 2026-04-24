@@ -109,11 +109,8 @@ Implemented:
 - Shared Worker + broadcast-channel cross-tab fan-out
 - Notification API integration (hidden-tab notify, focus + route on click, sound/favicon/title flasher)
 
-Stubbed / TODO (intentionally out of bootstrap scope):
+Stubbed / TODO:
 
-- Pyth price fetching (fake data in ws-server)
-- Real Claude Haiku calls (returns mocked signal)
-- Approval / Trade / Position persistence (route stubs)
-- Leaderboard + P&L
-- Framer Motion polish (plain CSS for now)
-- Real xStock mint addresses (placeholders — see `packages/shared/src/constants.ts`)
+- Real xStock mint addresses (empty until verifier paste — see `packages/shared/src/constants.ts`; runtime will refuse to load)
+- Real Pyth equity feed IDs (same — run `pnpm --filter @signaldesk/ws-server fetch:pyth-feeds`)
+- Signal-result back-evaluation cron (computing whether a signal "won" 1h later)

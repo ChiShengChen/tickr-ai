@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
   USDC_DECIMALS,
@@ -12,6 +13,7 @@ import {
 } from '@signaldesk/shared';
 import { useSharedWorker } from '@/lib/shared-worker/use-shared-worker';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
+import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
 
 const DEFAULT_TRADE_USD = Number(process.env.NEXT_PUBLIC_DEFAULT_TRADE_USD ?? '5');
 
@@ -33,6 +35,24 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
   const { swap, loading: swapLoading } = useJupiterSwap();
   const [now, setNow] = useState(() => Date.now());
   const [executing, setExecuting] = useState(false);
+  const [bars, setBars] = useState<ChartBar[]>([]);
+
+  useEffect(() => {
+    if (!signal) return;
+    let cancelled = false;
+    const bare = xStockToBare(signal.ticker as XStockTicker);
+    fetch(`/api/bars/${bare}?resolution=5&hours=24`)
+      .then((r) => (r.ok ? (r.json() as Promise<{ bars: ChartBar[] }>) : null))
+      .then((j) => {
+        if (!cancelled && j?.bars) setBars(j.bars);
+      })
+      .catch(() => {
+        /* ignore — chart just won't render */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [signal?.id, signal?.ticker]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 250);
@@ -161,8 +181,19 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
 
   if (!signal) {
     return (
-      <div style={overlayStyle}>
-        <div className="card" style={{ maxWidth: 420 }}>
+      <motion.div
+        style={overlayStyle}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2 }}
+      >
+        <motion.div
+          className="card"
+          style={{ maxWidth: 420 }}
+          initial={{ scale: 0.94, y: 12, opacity: 0 }}
+          animate={{ scale: 1, y: 0, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+        >
           <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Signal not found</h2>
           <p style={{ color: 'var(--color-fg-muted)', marginBottom: 16 }}>
             {fallbackId ? (
@@ -177,23 +208,37 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
           <button className="btn btn-ghost" onClick={() => onClose(null)}>
             Close
           </button>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     );
   }
 
   const actionClass =
     signal.action === 'BUY' ? 'badge-buy' : signal.action === 'SELL' ? 'badge-sell' : 'badge-hold';
+  const markerColor =
+    signal.action === 'BUY'
+      ? 'var(--color-buy)'
+      : signal.action === 'SELL'
+        ? 'var(--color-sell)'
+        : 'var(--color-fg-muted)';
 
   return (
-    <div style={overlayStyle}>
-      <div
+    <motion.div
+      style={overlayStyle}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.2 }}
+    >
+      <motion.div
         className="card"
         style={{
           width: 'min(640px, 92vw)',
           padding: '32px 32px 24px',
           boxShadow: '0 40px 120px rgba(0,0,0,0.6)',
         }}
+        initial={{ scale: 0.92, y: 24, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 280, damping: 24 }}
       >
         <div
           style={{
@@ -233,6 +278,30 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
         >
           {signal.rationale}
         </div>
+
+        {bars.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.08, duration: 0.3 }}
+            style={{
+              border: '1px solid var(--color-border)',
+              borderRadius: 10,
+              padding: '8px 6px 4px',
+              marginBottom: 16,
+            }}
+          >
+            <MiniChart
+              bars={bars}
+              height={140}
+              marker={{
+                price: signal.priceAtSignal,
+                label: 'signal',
+                color: markerColor,
+              }}
+            />
+          </motion.div>
+        )}
 
         <div
           style={{
@@ -277,8 +346,8 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
               : `Yes, execute ${signal.action}`}
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 

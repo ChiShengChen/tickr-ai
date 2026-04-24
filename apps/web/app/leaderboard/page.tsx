@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
 import Link from 'next/link';
 
 interface LeaderEntry {
@@ -65,8 +66,11 @@ export default function LeaderboardPage() {
               </tr>
             )}
             {data?.board.map((row, i) => (
-              <tr
+              <motion.tr
                 key={row.walletAddress}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.025, duration: 0.2 }}
                 style={{ borderTop: '1px solid var(--color-border)' }}
               >
                 <Td>{i + 1}</Td>
@@ -88,7 +92,7 @@ export default function LeaderboardPage() {
                     ? '—'
                     : `${(row.approvalAccuracy * 100).toFixed(0)}%`}
                 </Td>
-              </tr>
+              </motion.tr>
             ))}
           </tbody>
         </table>

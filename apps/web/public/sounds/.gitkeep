@@ -1,1 +1,3 @@
-# drop signal.mp3 here (referenced by sound-manager.ts). Any short, distinctive cue works.
+# Optional: signal cue is now synthesised in-browser via Web Audio (sound-manager.ts).
+# Drop a custom signal.mp3 here only if you want to override the synthesised ding;
+# you'd need to wire it through sound-manager.ts manually.

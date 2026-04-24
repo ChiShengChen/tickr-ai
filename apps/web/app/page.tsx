@@ -1,5 +1,13 @@
+'use client';
+
+import { motion, type Variants } from 'framer-motion';
 import Link from 'next/link';
 import { WalletButton } from '@/components/wallet/wallet-button';
+
+const cardVariants: Variants = {
+  hidden: { opacity: 0, y: 14 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } },
+};
 
 export default function LandingPage() {
   return (
@@ -36,7 +44,12 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      <section style={{ marginBottom: 48 }}>
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        style={{ marginBottom: 48 }}
+      >
         <h1
           style={{
             fontSize: 64,
@@ -54,19 +67,33 @@ export default function LandingPage() {
           Leave SignalDesk running in a background tab. Our signal engine watches xStocks on Pyth
           and pings you with a 30-second window to approve a Jupiter Ultra swap — gas sponsored.
         </p>
-      </section>
+      </motion.section>
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-        <Link href="/onboarding" className="card" style={{ textDecoration: 'none' }}>
-          <div style={{ color: 'var(--color-accent)', fontSize: 13, marginBottom: 8 }}>
-            STEP 1 · 2 MIN
-          </div>
-          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>Connect & onboard</div>
-          <div style={{ color: 'var(--color-fg-muted)', fontSize: 14 }}>
-            Phantom / Solflare / Backpack, notification permission, sound unlock.
-          </div>
-        </Link>
-        <div className="card">
+      <motion.section
+        initial="hidden"
+        animate="show"
+        variants={{
+          hidden: {},
+          show: { transition: { staggerChildren: 0.08, delayChildren: 0.15 } },
+        }}
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}
+      >
+        <motion.div variants={cardVariants}>
+          <Link
+            href="/onboarding"
+            className="card"
+            style={{ textDecoration: 'none', display: 'block' }}
+          >
+            <div style={{ color: 'var(--color-accent)', fontSize: 13, marginBottom: 8 }}>
+              STEP 1 · 2 MIN
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>Connect & onboard</div>
+            <div style={{ color: 'var(--color-fg-muted)', fontSize: 14 }}>
+              Phantom / Solflare / Backpack, notification permission, sound unlock.
+            </div>
+          </Link>
+        </motion.div>
+        <motion.div className="card" variants={cardVariants}>
           <div style={{ color: 'var(--color-fg-muted)', fontSize: 13, marginBottom: 8 }}>
             STEP 2 · PASSIVE
           </div>
@@ -74,8 +101,8 @@ export default function LandingPage() {
           <div style={{ color: 'var(--color-fg-muted)', fontSize: 14 }}>
             A Shared Worker keeps one socket alive across every tab.
           </div>
-        </div>
-        <div className="card">
+        </motion.div>
+        <motion.div className="card" variants={cardVariants}>
           <div style={{ color: 'var(--color-fg-muted)', fontSize: 13, marginBottom: 8 }}>
             STEP 3 · ON SIGNAL
           </div>
@@ -83,8 +110,8 @@ export default function LandingPage() {
           <div style={{ color: 'var(--color-fg-muted)', fontSize: 14 }}>
             System notification → modal with Yes / No. Click Yes, sign, done.
           </div>
-        </div>
-      </section>
+        </motion.div>
+      </motion.section>
     </main>
   );
 }

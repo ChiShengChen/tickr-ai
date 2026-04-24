@@ -1,6 +1,7 @@
 'use client';
 
 import { useWallet } from '@solana/wallet-adapter-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 import { useState } from 'react';
 import { BARE_TICKERS, XSTOCKS, solscanTokenUrl } from '@signaldesk/shared';
@@ -57,6 +58,14 @@ export default function OnboardingPage() {
       </Link>
 
       <div style={{ marginTop: 24 }} className="card">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -12 }}
+            transition={{ duration: 0.18 }}
+          >
         {step === 1 && (
           <>
             <StepHeader step={1} total={4} title="Connect your wallet" />
@@ -203,6 +212,8 @@ export default function OnboardingPage() {
             </div>
           </>
         )}
+          </motion.div>
+        </AnimatePresence>
       </div>
     </main>
   );

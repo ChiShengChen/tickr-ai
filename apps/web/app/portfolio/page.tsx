@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { WalletButton } from '@/components/wallet/wallet-button';
 
@@ -108,8 +109,14 @@ export default function PortfolioPage() {
                     </Td>
                   </tr>
                 )}
-                {data?.positions.map((p) => (
-                  <tr key={p.ticker} style={{ borderTop: '1px solid var(--color-border)' }}>
+                {data?.positions.map((p, i) => (
+                  <motion.tr
+                    key={p.ticker}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.03, duration: 0.2 }}
+                    style={{ borderTop: '1px solid var(--color-border)' }}
+                  >
                     <Td>{p.ticker}</Td>
                     <Td align="right">{p.tokenAmount.toFixed(4)}</Td>
                     <Td align="right">${p.avgCost.toFixed(2)}</Td>
@@ -127,7 +134,7 @@ export default function PortfolioPage() {
                     >
                       {p.pnl == null ? '—' : `$${p.pnl.toFixed(2)}`}
                     </Td>
-                  </tr>
+                  </motion.tr>
                 ))}
               </tbody>
             </table>
@@ -156,8 +163,14 @@ export default function PortfolioPage() {
                     </Td>
                   </tr>
                 )}
-                {data?.trades.map((t) => (
-                  <tr key={t.id} style={{ borderTop: '1px solid var(--color-border)' }}>
+                {data?.trades.map((t, i) => (
+                  <motion.tr
+                    key={t.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.02, duration: 0.18 }}
+                    style={{ borderTop: '1px solid var(--color-border)' }}
+                  >
                     <Td style={{ color: 'var(--color-fg-muted)', fontSize: 12 }}>
                       {new Date(t.createdAt).toLocaleString()}
                     </Td>
@@ -193,7 +206,7 @@ export default function PortfolioPage() {
                         {t.txSignature.slice(0, 6)}…
                       </a>
                     </Td>
-                  </tr>
+                  </motion.tr>
                 ))}
               </tbody>
             </table>

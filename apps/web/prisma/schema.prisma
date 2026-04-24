@@ -61,6 +61,7 @@ model Trade {
   executionPrice Float
   txSignature    String   @unique
   status         String
+  realizedPnl    Float    @default(0)
   createdAt      DateTime @default(now())
   user           User     @relation(fields: [userId], references: [id])
   signal         Signal?  @relation(fields: [signalId], references: [id])

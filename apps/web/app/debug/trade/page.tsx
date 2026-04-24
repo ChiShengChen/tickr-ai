@@ -2,106 +2,92 @@
 
 import { useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { VersionedTransaction } from '@solana/web3.js';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {
   BARE_TICKERS,
   USDC_DECIMALS,
-  USDC_MINT,
   XSTOCKS,
   solscanTokenUrl,
   type BareTicker,
 } from '@signaldesk/shared';
-import {
-  executeUltraOrder,
-  requestUltraOrder,
-  type UltraExecuteResponse,
-  type UltraOrderResponse,
-} from '@/lib/jupiter';
+import { useJupiterSwap, type SwapResult } from '@/lib/jupiter/use-jupiter-swap';
 import { WalletButton } from '@/components/wallet/wallet-button';
 
-function toBase64(bytes: Uint8Array): string {
-  if (typeof window === 'undefined') return Buffer.from(bytes).toString('base64');
-  let binary = '';
-  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i] ?? 0);
-  return window.btoa(binary);
-}
-
-function fromBase64(str: string): Uint8Array {
-  if (typeof window === 'undefined') return new Uint8Array(Buffer.from(str, 'base64'));
-  const binary = window.atob(str);
-  const arr = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
-  return arr;
-}
-
 export default function DebugTradePage() {
-  const { publicKey, signTransaction, connected } = useWallet();
+  const { publicKey, connected } = useWallet();
+  const { swap, loading } = useJupiterSwap();
   const [ticker, setTicker] = useState<BareTicker>('AAPL');
   const [usdAmount, setUsdAmount] = useState('5');
-  const [order, setOrder] = useState<UltraOrderResponse | null>(null);
-  const [execResult, setExecResult] = useState<UltraExecuteResponse | null>(null);
-  const [loading, setLoading] = useState<'quote' | 'exec' | null>(null);
+  const [direction, setDirection] = useState<'BUY' | 'SELL'>('BUY');
+  const [result, setResult] = useState<SwapResult | null>(null);
 
   const meta = XSTOCKS[ticker];
   const mint = meta.mint;
   const mintReady = mint.length > 0;
 
-  async function handleQuote() {
+  async function handleSwap() {
     if (!publicKey) return;
     if (!mintReady) {
       toast.error(
-        `${meta.symbol} mint not yet verified — run \`pnpm --filter @signaldesk/ws-server verify:xstocks\` and paste into constants.ts.`,
+        `${meta.symbol} mint not yet verified — run \`pnpm --filter @signaldesk/ws-server verify:xstocks\`.`,
       );
       return;
     }
-    const amount = Math.round(Number(usdAmount) * 10 ** USDC_DECIMALS).toString();
-    if (!Number.isFinite(Number(usdAmount)) || Number(usdAmount) <= 0) {
+    const usd = Number(usdAmount);
+    if (direction === 'BUY' && (!Number.isFinite(usd) || usd <= 0)) {
       toast.error('Enter a positive USD amount');
       return;
     }
-    setLoading('quote');
-    setOrder(null);
-    setExecResult(null);
+    setResult(null);
     try {
-      const ord = await requestUltraOrder({
-        inputMint: USDC_MINT,
-        outputMint: mint,
-        amount,
-        taker: publicKey.toBase58(),
-      });
-      setOrder(ord);
-      toast.success(`Quote: ${ord.inAmount} USDC → ${ord.outAmount} ${meta.symbol}`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(null);
-    }
-  }
-
-  async function handleExecute() {
-    if (!order || !signTransaction) return;
-    setLoading('exec');
-    try {
-      const txBytes = fromBase64(order.transaction);
-      const tx = VersionedTransaction.deserialize(txBytes);
-      const signed = await signTransaction(tx);
-      const signedBase64 = toBase64(signed.serialize());
-      const exec = await executeUltraOrder({
-        requestId: order.requestId,
-        signedTransaction: signedBase64,
-      });
-      setExecResult(exec);
-      if (exec.status === 'Success') {
-        toast.success(`Swap confirmed: ${exec.signature ?? '(no sig)'}`);
+      const r =
+        direction === 'BUY'
+          ? await swap({
+              direction: 'BUY',
+              xStockMint: mint,
+              xStockDecimals: meta.decimals,
+              usdAmount: usd,
+            })
+          : await swap({
+              direction: 'SELL',
+              xStockMint: mint,
+              xStockDecimals: meta.decimals,
+              sellAll: true,
+            });
+      setResult(r);
+      if (r.exec.status === 'Success') {
+        toast.success(`Swap confirmed: ${r.exec.signature ?? '(no sig)'}`);
+        // Persist trade. Side === direction; estimate execution price from in/out.
+        const tokenAmount =
+          direction === 'BUY'
+            ? Number(r.outputAmount) / 10 ** meta.decimals
+            : Number(r.inputAmount) / 10 ** meta.decimals;
+        const usdValue =
+          direction === 'BUY'
+            ? Number(r.inputAmount) / 10 ** USDC_DECIMALS
+            : Number(r.outputAmount) / 10 ** USDC_DECIMALS;
+        const executionPrice = tokenAmount > 0 ? usdValue / tokenAmount : 0;
+        await fetch('/api/trades', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            walletAddress: publicKey.toBase58(),
+            signalId: null,
+            ticker: meta.symbol,
+            side: direction,
+            amountUsd: usdValue,
+            tokenAmount,
+            executionPrice,
+            txSignature: r.exec.signature ?? `unknown-${Date.now()}`,
+            status: 'CONFIRMED',
+          }),
+        }).catch((err) => console.warn('[trade] persist failed', err));
       } else {
-        toast.error(`Swap failed: ${exec.error ?? 'unknown'}`);
+        toast.error(`Swap failed: ${r.exec.error ?? 'unknown'}`);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(null);
     }
   }
 
@@ -112,7 +98,8 @@ export default function DebugTradePage() {
       </Link>
       <h1 style={{ fontSize: 32, fontWeight: 800, margin: '16px 0 8px' }}>/debug/trade</h1>
       <p style={{ color: 'var(--color-fg-muted)', marginBottom: 24 }}>
-        Hit Jupiter Ultra with a hardcoded USDC → xStock swap. Gas is sponsored.
+        Manual end-to-end Jupiter Ultra swap. Gas is sponsored. Trades persist via{' '}
+        <code>/api/trades</code>.
       </p>
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -128,45 +115,47 @@ export default function DebugTradePage() {
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 13, color: 'var(--color-fg-muted)' }}>Direction</span>
+            <select
+              value={direction}
+              onChange={(e) => setDirection(e.target.value as 'BUY' | 'SELL')}
+              style={inputStyle}
+            >
+              <option value="BUY">BUY (USDC → xStock)</option>
+              <option value="SELL">SELL (xStock → USDC, all)</option>
+            </select>
+          </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span style={{ fontSize: 13, color: 'var(--color-fg-muted)' }}>Ticker</span>
             <select
               value={ticker}
               onChange={(e) => setTicker(e.target.value as BareTicker)}
-              style={{
-                padding: 10,
-                borderRadius: 8,
-                background: 'var(--color-bg-muted)',
-                color: 'var(--color-fg)',
-                border: '1px solid var(--color-border)',
-              }}
+              style={inputStyle}
             >
               {BARE_TICKERS.map((t) => {
                 const m = XSTOCKS[t];
                 return (
                   <option key={t} value={t}>
-                    {m.symbol} — {m.name} {m.mint ? '✓' : '⚠'}
+                    {m.symbol} {m.mint ? '✓' : '⚠'}
                   </option>
                 );
               })}
             </select>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 13, color: 'var(--color-fg-muted)' }}>Amount (USDC)</span>
+            <span style={{ fontSize: 13, color: 'var(--color-fg-muted)' }}>
+              {direction === 'BUY' ? 'USDC' : '(SELL ALL)'}
+            </span>
             <input
               type="number"
               min="0.01"
               step="0.01"
               value={usdAmount}
+              disabled={direction === 'SELL'}
               onChange={(e) => setUsdAmount(e.target.value)}
-              style={{
-                padding: 10,
-                borderRadius: 8,
-                background: 'var(--color-bg-muted)',
-                color: 'var(--color-fg)',
-                border: '1px solid var(--color-border)',
-              }}
+              style={inputStyle}
             />
           </label>
         </div>
@@ -185,33 +174,28 @@ export default function DebugTradePage() {
         ) : (
           <div style={{ fontSize: 12, color: 'var(--color-warn)', marginBottom: 12 }}>
             ⚠ {meta.symbol} mint is empty. Run{' '}
-            <code>pnpm --filter @signaldesk/ws-server verify:xstocks</code> and paste the result
-            into <code>packages/shared/src/constants.ts</code>.
+            <code>pnpm --filter @signaldesk/ws-server verify:xstocks</code>.
           </div>
         )}
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button
-            className="btn btn-primary"
-            disabled={!connected || loading !== null}
-            onClick={handleQuote}
-          >
-            {loading === 'quote' ? 'Fetching quote…' : '1. Get Ultra quote'}
-          </button>
-          <button
-            className="btn btn-buy"
-            disabled={!order || loading !== null || !signTransaction}
-            onClick={handleExecute}
-          >
-            {loading === 'exec' ? 'Executing…' : '2. Sign & execute'}
-          </button>
-        </div>
+        <button
+          className={direction === 'SELL' ? 'btn btn-sell' : 'btn btn-buy'}
+          disabled={!connected || loading !== null}
+          onClick={handleSwap}
+          style={{ padding: '14px 24px', fontSize: 15 }}
+        >
+          {loading === 'order'
+            ? 'Fetching quote…'
+            : loading === 'sign'
+              ? 'Awaiting signature…'
+              : loading === 'execute'
+                ? 'Submitting…'
+                : `Sign & ${direction} ${meta.symbol}`}
+        </button>
       </div>
 
-      {order && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 13, color: 'var(--color-fg-muted)', marginBottom: 6 }}>
-            Order
-          </div>
+      {result && (
+        <div className="card">
+          <div style={{ fontSize: 13, color: 'var(--color-fg-muted)', marginBottom: 6 }}>Result</div>
           <pre
             style={{
               fontSize: 12,
@@ -222,11 +206,11 @@ export default function DebugTradePage() {
           >
             {JSON.stringify(
               {
-                requestId: order.requestId,
-                inAmount: order.inAmount,
-                outAmount: order.outAmount,
-                priceImpactPct: order.priceImpactPct,
-                swapUsdValue: order.swapUsdValue,
+                status: result.exec.status,
+                signature: result.exec.signature,
+                inAmount: result.inputAmount,
+                outAmount: result.outputAmount,
+                requestId: result.order.requestId,
               },
               null,
               2,
@@ -234,24 +218,14 @@ export default function DebugTradePage() {
           </pre>
         </div>
       )}
-
-      {execResult && (
-        <div className="card">
-          <div style={{ fontSize: 13, color: 'var(--color-fg-muted)', marginBottom: 6 }}>
-            Execution
-          </div>
-          <pre
-            style={{
-              fontSize: 12,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-all',
-              color: 'var(--color-fg-muted)',
-            }}
-          >
-            {JSON.stringify(execResult, null, 2)}
-          </pre>
-        </div>
-      )}
     </main>
   );
 }
+
+const inputStyle: React.CSSProperties = {
+  padding: 10,
+  borderRadius: 8,
+  background: 'var(--color-bg-muted)',
+  color: 'var(--color-fg)',
+  border: '1px solid var(--color-border)',
+};

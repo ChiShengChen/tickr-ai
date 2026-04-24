@@ -10,7 +10,7 @@ import {
   type BareTicker,
 } from '@signaldesk/shared';
 import { env } from './env.js';
-import { persistApprovalDecision } from './db/index.js';
+import { persistApprovalDecision, shutdownPrisma } from './db/index.js';
 import { emitSignal, startSignalLoop } from './signals/generator.js';
 
 const app = express();
@@ -88,6 +88,7 @@ function shutdown(signal: string): void {
   console.log(`[ws] received ${signal}, shutting down`);
   stopFakeLoop();
   io.close();
+  void shutdownPrisma();
   httpServer.close(() => process.exit(0));
   setTimeout(() => process.exit(1), 5000).unref();
 }

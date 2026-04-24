@@ -3,8 +3,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { toast } from 'sonner';
-import type { Signal } from '@signaldesk/shared';
+import {
+  USDC_DECIMALS,
+  XSTOCKS,
+  xStockToBare,
+  type Signal,
+  type XStockTicker,
+} from '@signaldesk/shared';
 import { useSharedWorker } from '@/lib/shared-worker/use-shared-worker';
+import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
+
+const DEFAULT_TRADE_USD = Number(process.env.NEXT_PUBLIC_DEFAULT_TRADE_USD ?? '5');
 
 interface SignalModalProps {
   signal: Signal | null;
@@ -21,7 +30,9 @@ function ttlColor(ratio: number): string {
 export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
   const { publicKey } = useWallet();
   const { sendApproval } = useSharedWorker();
+  const { swap, loading: swapLoading } = useJupiterSwap();
   const [now, setNow] = useState(() => Date.now());
+  const [executing, setExecuting] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 250);
@@ -38,13 +49,13 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
 
   useEffect(() => {
     if (!signal) return;
-    if (secondsLeft <= 0) {
-      submit(false);
+    if (secondsLeft <= 0 && !executing) {
+      void submit(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secondsLeft, signal?.id]);
+  }, [secondsLeft, signal?.id, executing]);
 
-  function submit(decision: boolean) {
+  async function submit(decision: boolean) {
     if (!signal) {
       onClose(null);
       return;
@@ -53,17 +64,99 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
       toast.error('Connect a wallet to approve signals');
       return;
     }
+
+    // Always record the approval decision first (Yes or No).
     sendApproval({
       signalId: signal.id,
       walletAddress: publicKey.toBase58(),
       decision,
     });
-    if (decision) {
-      toast.success(`Executing ${signal.action} ${signal.ticker}… (stubbed — wire Jupiter here)`);
-    } else {
+    void fetch('/api/approvals', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        signalId: signal.id,
+        walletAddress: publicKey.toBase58(),
+        decision,
+      }),
+    }).catch(() => {});
+
+    if (!decision) {
       toast('Signal skipped');
+      onClose(decision);
+      return;
     }
-    onClose(decision);
+
+    // Yes path: pull mint, run Jupiter Ultra round-trip, persist trade.
+    const bare = xStockToBare(signal.ticker as XStockTicker);
+    const meta = XSTOCKS[bare];
+    if (!meta) {
+      toast.error(`Unknown ticker ${signal.ticker}`);
+      onClose(decision);
+      return;
+    }
+    if (!meta.mint) {
+      toast.error(
+        `${meta.symbol} mint is empty — run \`pnpm --filter @signaldesk/ws-server verify:xstocks\`.`,
+      );
+      onClose(decision);
+      return;
+    }
+
+    setExecuting(true);
+    try {
+      const result =
+        signal.action === 'BUY'
+          ? await swap({
+              direction: 'BUY',
+              xStockMint: meta.mint,
+              xStockDecimals: meta.decimals,
+              usdAmount: DEFAULT_TRADE_USD,
+            })
+          : await swap({
+              direction: 'SELL',
+              xStockMint: meta.mint,
+              xStockDecimals: meta.decimals,
+              sellAll: true,
+            });
+
+      const tokenAmount =
+        signal.action === 'BUY'
+          ? Number(result.outputAmount) / 10 ** meta.decimals
+          : Number(result.inputAmount) / 10 ** meta.decimals;
+      const usdValue =
+        signal.action === 'BUY'
+          ? Number(result.inputAmount) / 10 ** USDC_DECIMALS
+          : Number(result.outputAmount) / 10 ** USDC_DECIMALS;
+      const executionPrice = tokenAmount > 0 ? usdValue / tokenAmount : signal.priceAtSignal;
+
+      await fetch('/api/trades', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: publicKey.toBase58(),
+          signalId: signal.id,
+          ticker: signal.ticker,
+          side: signal.action,
+          amountUsd: usdValue,
+          tokenAmount,
+          executionPrice,
+          txSignature: result.exec.signature ?? `unknown-${Date.now()}`,
+          status: result.exec.status === 'Success' ? 'CONFIRMED' : 'FAILED',
+        }),
+      });
+
+      if (result.exec.status === 'Success') {
+        toast.success(`${signal.action} ${signal.ticker} confirmed`);
+      } else {
+        toast.error(`Swap failed: ${result.exec.error ?? 'unknown'}`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setExecuting(false);
+      onClose(decision);
+    }
   }
 
   if (!signal) {
@@ -162,16 +255,26 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
           <button
             className="btn btn-ghost"
             style={{ flex: 1, padding: '16px 24px', fontSize: 16 }}
-            onClick={() => submit(false)}
+            disabled={executing}
+            onClick={() => void submit(false)}
           >
             No, skip
           </button>
           <button
             className={signal.action === 'SELL' ? 'btn btn-sell' : 'btn btn-buy'}
             style={{ flex: 2, padding: '16px 24px', fontSize: 16 }}
-            onClick={() => submit(true)}
+            disabled={executing}
+            onClick={() => void submit(true)}
           >
-            Yes, execute {signal.action}
+            {executing
+              ? swapLoading === 'order'
+                ? 'Quoting…'
+                : swapLoading === 'sign'
+                  ? 'Awaiting signature…'
+                  : swapLoading === 'execute'
+                    ? 'Submitting…'
+                    : 'Executing…'
+              : `Yes, execute ${signal.action}`}
           </button>
         </div>
       </div>

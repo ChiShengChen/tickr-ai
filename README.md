@@ -6,6 +6,73 @@ The desktop web app runs in the background. A signal engine cron-generates BUY/S
 
 ---
 
+## TL;DR
+
+> Feed **live Pyth equity prices** into **Claude Haiku** to produce AI trading signals, fan them to every open browser tab via a **Shared Worker + OS notifications**, let the user approve with a single click to fire a **gas-sponsored Jupiter Ultra swap** into an xStock, then auto-grade each signal an hour later against the actual Pyth move — all running on **Next.js + Socket.IO + Neon + Upstash**.
+
+### User flow (≈ 3 min)
+
+```
+Connect wallet (Phantom / Solflare / Backpack)
+  ↓
+Onboarding — allow OS notifications, unlock sound, review 8 monitored tickers
+  ↓
+Switch to another tab, leave SignalDesk running in the background
+  ↓  (~1 min later)
+OS notification pops: "BUY AAPLx · RSI oversold + MACD bullish"
+  tab-title flashes · favicon gets a red dot · Web Audio ding
+  ↓  click the notification
+Tab refocuses, fullscreen modal opens:
+  ticker · confidence ring · 24h chart (dashed line at priceAtSignal)
+  rationale · 30s TTL countdown (green → yellow → red)
+  ↓  press "Yes, Execute"
+Wallet prompts for signature → Jupiter Ultra /execute (gas sponsored)
+  ↓
+Portfolio page: new position with weighted avgCost + mark-to-market P&L + Solscan tx
+  ↓  (~1 h later)
+Leaderboard agent banner: the back-evaluator grades this signal WIN / LOSS / NEUTRAL
+```
+
+Full loop: **AI decides → user approves → on-chain swap → positions tracked → outcome graded → leaderboard updates**.
+
+### Tech stack (one line each)
+
+**Frontend**
+- **Next.js 15 App Router + React 19** — framework
+- **Tailwind v4 + Framer Motion** — styling + transitions
+- **Zustand** — local state (in-memory signals)
+- **TanStack Query** — server state (portfolio / leaderboard auto-refetch)
+- **sonner** — toast
+- **lightweight-charts** — TradingView area chart inside the signal modal
+- **Shared Worker + broadcast-channel** — one WebSocket shared across every tab
+- **Web Audio API** — synthesised ding, no mp3 shipped
+- **Notification API** — native OS notifications (no Service Worker / no PWA)
+
+**Wallet + on-chain**
+- **@solana/wallet-adapter-react** — Phantom / Solflare / Backpack
+- **Jupiter Ultra API** — one-shot swap, **gas sponsored**
+- **SPL Token-2022** — xStocks mint standard
+
+**Data sources**
+- **Pyth Hermes** — live prices (`Equity.US.<TICKER>/USD` × 8)
+- **Pyth Benchmarks** — 5-min OHLC history (TradingView shim)
+
+**Backend**
+- **Node.js + Express + Socket.IO** — WebSocket server (Railway)
+- **Anthropic SDK / Claude Haiku 4.5** — structured-JSON signal generator
+- **technicalindicators** — RSI / MACD / MA20 / MA50
+- **Zod** — runtime validation for every payload
+
+**Storage**
+- **Neon Postgres + Prisma** — 5 tables (User / Signal / Approval / Trade / Position)
+- **Upstash Redis** — signal TTL cache + Pyth bar cache + LLM daily spend counter
+
+**Scheduling**
+- **Vercel Cron** — */1 min generate, */5 min evaluate
+- **ws-server setInterval** — same two loops in-process for local dev
+
+---
+
 ## Architecture
 
 ### Repo layout

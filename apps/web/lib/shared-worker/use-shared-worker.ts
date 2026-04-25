@@ -48,10 +48,6 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    let worker: SharedWorker | null = null;
-    let port: MessagePort | null = null;
-    let usingSharedWorker = false;
-
     function handleMessage(msg: WorkerToTab) {
       if (!msg) return;
       if (msg.type === 'connected') setConnected(true);
@@ -59,63 +55,38 @@ export function useSharedWorker(opts: UseSharedWorkerOptions = {}): UseSharedWor
       else if (msg.type === 'signal:new') onSignalRef.current?.(msg.signal);
     }
 
-    if ('SharedWorker' in window) {
-      try {
-        worker = new SharedWorker(
-          new URL('./socket-worker.ts', import.meta.url),
-          { type: 'module', name: 'signaldesk-socket' },
-        );
-        port = worker.port;
-        port.start();
-        portRef.current = port;
-        port.addEventListener('message', (ev: MessageEvent<WorkerToTab>) => {
-          handleMessage(ev.data);
-        });
-        port.postMessage({ type: 'hello' } satisfies TabToWorker);
-        usingSharedWorker = true;
-        console.info('[ws] using SharedWorker transport');
-      } catch (err) {
-        console.warn('[ws] SharedWorker unavailable, falling back to direct Socket.IO', err);
-      }
-    }
-
+    // We previously tried `new SharedWorker(new URL('./socket-worker.ts', ...))`
+    // for cross-tab dedup, but Turbopack in Next.js 15 dev doesn't bundle the
+    // worker script — the constructor succeeds but the script load fails async
+    // ('Failed to fetch a worker script.'), and the error doesn't reach our
+    // try/catch. For now we always go direct Socket.IO. Cross-tab dedup is a
+    // production polish item.
     const channel = new BroadcastChannel<WorkerToTab>(BROADCAST_CHANNEL);
     channel.addEventListener('message', handleMessage);
 
-    // Direct Socket.IO fallback. Runs alongside SharedWorker; the worker may
-    // also fail silently after construction, so we always keep a backup link.
-    if (!usingSharedWorker) {
-      console.info(`[ws] opening direct Socket.IO to ${WS_URL}`);
-      const socket = io(WS_URL, {
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionDelay: 1_000,
-        reconnectionDelayMax: 10_000,
-      });
-      directSocketRef.current = socket;
-      socket.on('connect', () => {
-        console.info('[ws] direct socket connected', socket.id);
-        setConnected(true);
-      });
-      socket.on('disconnect', (reason) => {
-        console.info('[ws] direct socket disconnected', reason);
-        setConnected(false);
-      });
-      socket.on(WsServerEvents.SignalNew, (signal: Signal) => {
-        onSignalRef.current?.(signal);
-      });
-    }
+    console.info(`[ws] opening direct Socket.IO to ${WS_URL}`);
+    const socket = io(WS_URL, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1_000,
+      reconnectionDelayMax: 10_000,
+    });
+    directSocketRef.current = socket;
+    socket.on('connect', () => {
+      console.info('[ws] direct socket connected', socket.id);
+      setConnected(true);
+    });
+    socket.on('disconnect', (reason) => {
+      console.info('[ws] direct socket disconnected', reason);
+      setConnected(false);
+    });
+    socket.on(WsServerEvents.SignalNew, (signal: Signal) => {
+      onSignalRef.current?.(signal);
+    });
 
     return () => {
       channel.removeEventListener('message', handleMessage);
       void channel.close();
-      if (port) {
-        try {
-          port.close();
-        } catch {
-          /* noop */
-        }
-      }
       if (directSocketRef.current) {
         directSocketRef.current.disconnect();
         directSocketRef.current = null;

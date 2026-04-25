@@ -270,9 +270,39 @@ Trade.status    : PENDING | CONFIRMED | FAILED
 - **DB** — Neon Postgres via Prisma
 - **Cache** — Upstash Redis
 
+## Demo mode (no credentials required)
+
+Just want to poke the UX? Flip **`DEMO_MODE=true`** (+ `NEXT_PUBLIC_DEMO_MODE=true`) and skip every external service.
+
+```bash
+git clone https://github.com/ChiShengChen/tickr-ai.git
+cd tickr-ai
+pnpm install
+cp .env.example .env                                # defaults are fine
+# edit .env: set both DEMO_MODE=true and NEXT_PUBLIC_DEMO_MODE=true
+cp .env apps/web/.env.local
+cp .env apps/ws-server/.env
+pnpm --filter @signaldesk/web exec prisma generate  # offline, no DB needed
+pnpm dev
+```
+
+What's faked:
+
+- **ws-server** emits a hand-crafted signal every `DEMO_INTERVAL_SECONDS` (default 20s) rotating through an 8-ticker library. No Pyth, no Anthropic, no DB writes, no back-evaluator.
+- **SignalModal** chart is a deterministic random walk seeded per-ticker.
+- **"Yes, Execute"** simulates Quoting → Awaiting signature → Submitting with realistic delays, returns a synthetic tx signature. No wallet is required (though you can still connect one for show).
+- **Portfolio** and **Leaderboard** read from in-memory Zustand fixtures. Every "Yes" appends a trade and updates the position with correct weighted avgCost so the P&L numbers move as you click.
+- The landing page shows a yellow **DEMO** badge next to the logo so there's no ambiguity.
+
+What's real: Next.js, Socket.IO, Shared Worker, cross-tab broadcasting, browser notifications, tab-title flasher, favicon dot, Web Audio ding, Framer Motion transitions, TradingView chart rendering — anything purely UX.
+
+To go from demo to live: set `DEMO_MODE=false`, then follow *Getting started from zero* below (services, feed ids, mints, `db:push`).
+
+---
+
 ## Getting started from zero
 
-First-time end-to-end is ~30 minutes. Every step below is required.
+First-time end-to-end is ~30 minutes. Every step below is required for the **live** (non-demo) path.
 
 ### Phase A — External services (~15 min)
 

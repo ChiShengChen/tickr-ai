@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import type { Signal } from '@signaldesk/shared';
+import { makeDemoSignal, type Signal } from '@signaldesk/shared';
 import { prisma } from '@/lib/db';
+import { isDemoServer } from '@/lib/demo/flag';
 import { getRedis } from '@/lib/redis';
 
 interface PrismaSignalRow {
@@ -14,6 +15,12 @@ interface PrismaSignalRow {
   indicators: unknown;
   createdAt: Date;
   expiresAt: Date;
+}
+
+function hash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return h;
 }
 
 function rowToSignal(row: PrismaSignalRow): Signal {
@@ -34,6 +41,12 @@ function rowToSignal(row: PrismaSignalRow): Signal {
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
+
+  if (isDemoServer()) {
+    // Synthesise a signal so a cold refresh / shared link still lands on a modal.
+    const signal = { ...makeDemoSignal(Math.abs(hash(id))), id };
+    return NextResponse.json({ signal, source: 'demo' });
+  }
 
   // 1) Postgres (authoritative)
   const row = await prisma.signal.findUnique({ where: { id } });

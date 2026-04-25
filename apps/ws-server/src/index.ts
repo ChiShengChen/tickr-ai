@@ -101,6 +101,10 @@ const stopFakeLoop = startSignalLoop(io);
 const stopEvalLoop = startEvaluatorLoop();
 
 function startEvaluatorLoop(): () => void {
+  if (env.DEMO_MODE) {
+    console.log('[eval] demo mode — back-evaluator disabled');
+    return () => {};
+  }
   const intervalMs = 5 * 60_000;
   let stopped = false;
   let busy = false;

@@ -3,6 +3,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { DEMO_LEADERBOARD } from '@signaldesk/shared';
+import { isDemo } from '@/lib/demo';
 
 interface AgentStats {
   totalEvaluated: number;
@@ -32,15 +34,18 @@ function shorten(addr: string): string {
 }
 
 export default function LeaderboardPage() {
-  const { data, isLoading } = useQuery<LeaderboardResponse>({
+  const demo = isDemo();
+  const { data: liveData, isLoading } = useQuery<LeaderboardResponse>({
     queryKey: ['leaderboard'],
     queryFn: async () => {
       const r = await fetch('/api/leaderboard?limit=20');
       if (!r.ok) throw new Error(`leaderboard failed: ${r.status}`);
       return (await r.json()) as LeaderboardResponse;
     },
+    enabled: !demo,
     refetchInterval: 30_000,
   });
+  const data = demo ? (DEMO_LEADERBOARD as LeaderboardResponse) : liveData;
 
   return (
     <main style={{ maxWidth: 960, margin: '0 auto', padding: '48px 24px' }}>

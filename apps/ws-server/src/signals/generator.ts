@@ -5,6 +5,7 @@ import {
   SIGNAL_TTL_DEFAULT,
   WsServerEvents,
   bareToXStock,
+  makeDemoSignal,
   type BareTicker,
   type IndicatorSnapshot,
   type Signal,
@@ -108,6 +109,32 @@ export async function emitSignal(io: IoServer, ticker?: BareTicker): Promise<Sig
   return signal;
 }
 
+// --- Demo mode --------------------------------------------------------------
+let demoCursor = 0;
+function emitDemoSignal(io: IoServer): Signal {
+  const signal = makeDemoSignal(demoCursor++);
+  io.emit(WsServerEvents.SignalNew, signal);
+  console.log(`[demo] emitted ${signal.ticker} ${signal.action} id=${signal.id}`);
+  return signal;
+}
+
+function startDemoSignalLoop(io: IoServer): () => void {
+  const intervalMs = env.DEMO_INTERVAL_SECONDS * 1000;
+  let stopped = false;
+  // Kick off immediately so the user doesn't wait.
+  setTimeout(() => {
+    if (!stopped) emitDemoSignal(io);
+  }, 3_000);
+  const handle = setInterval(() => {
+    if (!stopped) emitDemoSignal(io);
+  }, intervalMs);
+  console.log(`[demo] fake signal loop running every ${env.DEMO_INTERVAL_SECONDS}s`);
+  return () => {
+    stopped = true;
+    clearInterval(handle);
+  };
+}
+
 function pickRandomTicker(): BareTicker {
   const idx = Math.floor(Math.random() * BARE_TICKERS.length);
   return BARE_TICKERS[idx] ?? 'AAPL';
@@ -119,6 +146,8 @@ function pickRandomTicker(): BareTicker {
  * so we don't burst Hermes / Anthropic.
  */
 export function startSignalLoop(io: IoServer): () => void {
+  if (env.DEMO_MODE) return startDemoSignalLoop(io);
+
   const intervalSeconds = env.SIGNAL_INTERVAL_SECONDS;
   const staggerSeconds = env.TICKER_STAGGER_SECONDS;
   let stopped = false;

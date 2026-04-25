@@ -23,6 +23,11 @@ const EnvSchema = z.object({
     .union([z.literal('true'), z.literal('false')])
     .transform((v) => v === 'true')
     .default('true'),
+  DEMO_MODE: z
+    .union([z.literal('true'), z.literal('false')])
+    .transform((v) => v === 'true')
+    .default('false'),
+  DEMO_INTERVAL_SECONDS: z.coerce.number().int().positive().default(20),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

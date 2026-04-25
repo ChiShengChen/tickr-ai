@@ -4,7 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { useMemo } from 'react';
 import { WalletButton } from '@/components/wallet/wallet-button';
+import { isDemo, useDemoStore } from '@/lib/demo';
 
 interface PortfolioPosition {
   ticker: string;
@@ -34,8 +36,24 @@ interface PortfolioResponse {
 export default function PortfolioPage() {
   const { publicKey, connected } = useWallet();
   const wallet = publicKey?.toBase58();
+  const demo = isDemo();
+  const demoPositions = useDemoStore((s) => s.positions);
+  const demoTrades = useDemoStore((s) => s.trades);
 
-  const { data, isLoading } = useQuery<PortfolioResponse>({
+  const demoData: PortfolioResponse | null = useMemo(() => {
+    if (!demo) return null;
+    const realized = demoTrades
+      .filter((t) => t.side === 'SELL' && t.status === 'CONFIRMED')
+      .reduce((acc, t) => acc + t.realizedPnl, 0);
+    const unrealized = demoPositions.reduce((acc, p) => acc + (p.pnl ?? 0), 0);
+    return {
+      positions: demoPositions,
+      trades: demoTrades,
+      pnl: { realized, unrealized },
+    };
+  }, [demo, demoPositions, demoTrades]);
+
+  const { data: liveData, isLoading } = useQuery<PortfolioResponse>({
     queryKey: ['portfolio', wallet],
     queryFn: async () => {
       if (!wallet) throw new Error('no wallet');
@@ -43,9 +61,11 @@ export default function PortfolioPage() {
       if (!r.ok) throw new Error(`portfolio failed: ${r.status}`);
       return (await r.json()) as PortfolioResponse;
     },
-    enabled: !!wallet,
+    enabled: !!wallet && !demo,
     refetchInterval: 15_000,
   });
+
+  const data = demo ? demoData : liveData;
 
   return (
     <main style={{ maxWidth: 960, margin: '0 auto', padding: '48px 24px' }}>
@@ -64,13 +84,13 @@ export default function PortfolioPage() {
         <WalletButton />
       </div>
 
-      {!connected && (
+      {!connected && !demo && (
         <div className="card">
           <p style={{ color: 'var(--color-fg-muted)' }}>Connect a wallet to load your portfolio.</p>
         </div>
       )}
 
-      {connected && (
+      {(connected || demo) && (
         <>
           <div
             style={{

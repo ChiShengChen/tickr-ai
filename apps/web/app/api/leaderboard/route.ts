@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { DEMO_LEADERBOARD } from '@signaldesk/shared';
 import { prisma } from '@/lib/db';
+import { isDemoServer } from '@/lib/demo/flag';
 
 interface AgentStats {
   totalEvaluated: number;
@@ -30,6 +32,12 @@ interface LeaderEntry {
  */
 export async function GET(req: NextRequest) {
   const limit = Math.min(Number(req.nextUrl.searchParams.get('limit') ?? '20'), 100);
+  if (isDemoServer()) {
+    return NextResponse.json({
+      agent: DEMO_LEADERBOARD.agent,
+      board: DEMO_LEADERBOARD.board.slice(0, limit),
+    });
+  }
 
   const [users, evaluatedSignals] = await Promise.all([
     prisma.user.findMany({

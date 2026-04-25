@@ -3,6 +3,7 @@
 import { motion, type Variants } from 'framer-motion';
 import Link from 'next/link';
 import { WalletButton } from '@/components/wallet/wallet-button';
+import { isDemo } from '@/lib/demo';
 
 const cardVariants: Variants = {
   hidden: { opacity: 0, y: 14 },
@@ -27,8 +28,25 @@ export default function LandingPage() {
           marginBottom: 64,
         }}
       >
-        <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>
+        <div
+          style={{
+            fontSize: 20,
+            fontWeight: 700,
+            letterSpacing: '-0.02em',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+          }}
+        >
           SignalDesk<span style={{ color: 'var(--color-accent)' }}>.</span>
+          {isDemo() && (
+            <span
+              className="badge"
+              style={{ background: 'rgba(245,158,11,0.18)', color: 'var(--color-warn)' }}
+            >
+              DEMO
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <Link href="/portfolio" className="btn btn-ghost">

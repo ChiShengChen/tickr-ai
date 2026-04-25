@@ -1,9 +1,24 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import type { XStockTicker } from '@signaldesk/shared';
+import {
+  demoInitialPositions,
+  demoInitialTrades,
+  type XStockTicker,
+} from '@signaldesk/shared';
 import { prisma } from '@/lib/db';
+import { isDemoServer } from '@/lib/demo/flag';
 import { getCurrentPrices } from '@/lib/pyth';
 
 export async function GET(req: NextRequest) {
+  if (isDemoServer()) {
+    const positions = demoInitialPositions();
+    const trades = demoInitialTrades();
+    const realized = trades
+      .filter((t) => t.side === 'SELL' && t.status === 'CONFIRMED')
+      .reduce((acc, t) => acc + t.realizedPnl, 0);
+    const unrealized = positions.reduce((acc, p) => acc + (p.pnl ?? 0), 0);
+    return NextResponse.json({ positions, trades, pnl: { realized, unrealized } });
+  }
+
   const wallet = req.nextUrl.searchParams.get('wallet');
   if (!wallet) {
     return NextResponse.json({

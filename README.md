@@ -203,73 +203,170 @@ Trade.status    : PENDING | CONFIRMED | FAILED
 - **DB** — Neon Postgres via Prisma
 - **Cache** — Upstash Redis
 
-## Setup
+## Getting started from zero
 
-**1. Prereqs**
+First-time end-to-end is ~30 minutes. Every step below is required.
 
-- Node ≥ 20
-- pnpm ≥ 9 (`corepack enable && corepack prepare pnpm@latest --activate`)
+### Phase A — External services (~15 min)
 
-**2. Install**
+All free tiers are enough to demo.
+
+| # | Service | Purpose | What you copy |
+|---|---------|---------|---------------|
+| 1 | [Helius](https://helius.dev) | Solana RPC | `https://mainnet.helius-rpc.com/?api-key=<key>` |
+| 2 | [Anthropic Console](https://console.anthropic.com) | Claude Haiku LLM (add ≥ $5 credit) | `sk-ant-...` |
+| 3 | [Neon](https://neon.tech) | Postgres | `postgresql://user:pass@xxx.neon.tech/neondb?sslmode=require` |
+| 4 | [Upstash](https://upstash.com) | Redis (REST) | `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` |
+| 5 | `openssl rand -base64 32` | shared secret between Vercel Cron ↔ ws-server | the random string |
+| 6 | Phantom / Solflare / Backpack | browser wallet — fund with **$1–2 USDC on mainnet** (mint `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`) | address stays local |
+
+### Phase B — Local env (~5 min)
 
 ```bash
+# 1. Tooling
+node -v                                                   # needs >= 20
+corepack enable && corepack prepare pnpm@latest --activate
+pnpm -v                                                   # needs >= 9
+
+# 2. Clone
+git clone https://github.com/ChiShengChen/tickr-ai.git
+cd tickr-ai
+
+# 3. Install
 pnpm install
-```
 
-**3. Environment**
-
-```bash
+# 4. Env
 cp .env.example .env
-# fill in:
-#   NEXT_PUBLIC_SOLANA_RPC_URL (Helius)
+# open .env and paste the 6 values from Phase A:
+#   NEXT_PUBLIC_SOLANA_RPC_URL
 #   ANTHROPIC_API_KEY
-#   DATABASE_URL (Neon)
+#   DATABASE_URL
 #   UPSTASH_REDIS_REST_URL / _TOKEN
-#   WS_CRON_SECRET (any strong random string)
-```
+#   WS_CRON_SECRET
 
-The web app reads `apps/web/.env.local` and the ws-server reads `apps/ws-server/.env`. Simplest: copy or symlink the root `.env` into both.
-
-```bash
+# 5. Mirror env into each app (ws-server reads its own .env; web reads .env.local)
 cp .env apps/web/.env.local
 cp .env apps/ws-server/.env
 ```
 
-**4. Verify mints + feed ids (one-time, required)**
+### Phase C — Populate mints + feed ids (one-time, required)
+
+This is intentionally non-automated. `requireMint()` / `requirePythFeedId()` throw at load time if these are still empty — so real USDC cannot be routed to `""` and Hermes cannot be queried with a bad id.
+
+**C.1 Pyth feed ids**
 
 ```bash
-# 1. Pyth feed ids → paste into packages/shared/src/constants.ts
 pnpm --filter @signaldesk/ws-server fetch:pyth-feeds
+```
 
-# 2. xStock mints: author data/xstock-candidates.json with 8 ticker→mint entries, then:
+Output:
+```
+AAPL: { ...XSTOCKS.AAPL, pythFeedId: '0xb5d0e0fa58a...' },  // Equity.US.AAPL/USD
+NVDA: { ...XSTOCKS.NVDA, pythFeedId: '0x...' },
+...
+```
+Paste each `pythFeedId` value into the matching entry in [`packages/shared/src/constants.ts`](packages/shared/src/constants.ts) → `XSTOCKS`.
+
+**C.2 xStock mints**
+
+Author `apps/ws-server/data/xstock-candidates.json` (source the mints from https://xstocks.com/products or by searching Solscan for `AAPLx` / `NVDAx` / …):
+
+```json
+{
+  "AAPL": "<AAPLx mint base58>",
+  "NVDA": "<NVDAx mint base58>",
+  "TSLA": "<TSLAx mint base58>",
+  "SPY":  "<SPYx mint base58>",
+  "QQQ":  "<QQQx mint base58>",
+  "MSFT": "<MSFTx mint base58>",
+  "GOOGL": "<GOOGLx mint base58>",
+  "META": "<METAx mint base58>"
+}
+```
+
+Run the verifier:
+
+```bash
 pnpm --filter @signaldesk/ws-server verify:xstocks
 ```
 
-Runtime `requireMint()` / `requirePythFeedId()` refuse to load until these are populated. This is deliberate — empty placeholders would happily route real USDC to `""`.
+It checks each mint via Helius: owner must be SPL Token-2022 (`TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb`), decimals must be 8. On success it prints a paste-ready snippet; drop each `mint` value into the same `XSTOCKS` entries in `constants.ts`.
 
-**5. Database**
+### Phase D — Database
 
 ```bash
-pnpm db:generate   # generate Prisma client
-pnpm db:push       # push schema to Neon (no migration files yet)
+pnpm db:generate   # generate Prisma client (both apps)
+pnpm db:push       # create the 5 tables + SignalOutcome enum on Neon
 ```
 
-**6. Dev**
+### Phase E — Smoke test (required)
+
+Before `pnpm dev`, confirm the pipeline end-to-end:
+
+```bash
+pnpm --filter @signaldesk/ws-server smoke
+```
+
+Expected:
+```
+--- 1. Pyth latest prices ---
+  AAPL   $230.12  conf±0.0042  age=3s  market=OPEN
+  NVDA   $920.45  ...
+--- 2. AAPL historical bars (5min, 24h) ---
+  total bars: 288
+  first: ...
+  last:  ...
+--- 3. AAPL indicators ---
+  RSI(14): 52.31
+  MACD:    macd=0.12 signal=0.08 hist=0.04
+  MA20:    229.80
+  MA50:    228.10
+--- 4. LLM signal (AAPL) ---
+  action:     HOLD
+  confidence: 0.65
+  rationale:  RSI=52 neutral...
+  tokens:     in=820 out=115 cost=$0.0014
+✅ smoke test ok
+```
+
+If this fails, don't move on. See *Troubleshooting* below.
+
+### Phase F — Run it
 
 ```bash
 pnpm dev
-# web       → http://localhost:3000
-# ws-server → http://localhost:4000
+# web        → http://localhost:3000
+# ws-server  → http://localhost:4000
+#              [signal] loop running interval=60s stagger=2s tickers=8
+#              [eval]   back-evaluator running every 5 min
 ```
 
-## Verifying the full loop
+## End-to-end demo flow (~3 minutes)
 
-1. Open `http://localhost:3000`, walk through `/onboarding` (wallet → notifications → sound unlock → monitored tickers).
-2. Switch to another browser tab. Within ~60s you'll get a system notification from SignalDesk with real ticker + rationale.
-3. Click it → the tab focuses, `/signals/<id>` opens the fullscreen modal (chart + TTL ring + live price line).
-4. Click "Yes" → wallet signature → Jupiter Ultra `/execute` → `/portfolio` shows a new position.
-5. Wait ~1 h → `/leaderboard` agent banner starts showing win rate as the back-evaluator grades the signal.
-6. `/debug/trade` for a manual swap bypass.
+1. Open http://localhost:3000.
+2. Click the wallet button in the top-right, connect Phantom/Solflare/Backpack.
+3. Go to `/onboarding` and complete all 4 steps: wallet → **allow browser notifications** (required) → "Unlock & test" to play the synth ding → review the 8 monitored tickers.
+4. Back to home. Switch to **another browser tab** (leave SignalDesk open in the background).
+5. Wait ~1 minute. An OS notification pops up, e.g. **SignalDesk · BUY AAPLx**. The title bar flashes, the favicon gets a red dot, the ding plays.
+6. Click the notification → SignalDesk tab refocuses → `/signals/<id>` opens the fullscreen modal (ticker, confidence ring, rationale, 24h chart with `priceAtSignal` dashed line, 30s TTL countdown).
+7. Click **Yes, execute BUY** → wallet prompts for a signature → toast confirms `BUY AAPLx confirmed`.
+8. Open `/portfolio` — the new position, a Trade row with a Solscan tx link, realised/unrealised P&L.
+9. Wait ~1 hour → `/leaderboard` agent banner's win rate starts moving as the back-evaluator grades the signal.
+
+Or skip the wait with **`/debug/trade`** — pick ticker + USD amount → one-button sign & swap bypasses the signal flow entirely and still persists to the DB.
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `[constants] mint address for AAPL is empty` | skipped Phase C.2 | author `data/xstock-candidates.json`, run `verify:xstocks`, paste into `constants.ts` |
+| `[constants] pyth feed id for AAPL is empty` | skipped Phase C.1 | run `fetch:pyth-feeds`, paste into `constants.ts` |
+| Notifications don't appear when tab is hidden | onboarding step 2 not completed | macOS: System Settings → Notifications → Chrome/Firefox/Safari → Allow. Re-run `/onboarding` |
+| Smoke test prints `market=CLOSED` and signals never fire | US market is closed (weekend / out-of-hours) | add `BYPASS_MARKET_HOURS=true` to `.env` and restart |
+| Modal "Yes" fails with `⚠ AAPLx mint not verified` | mint cell still empty in `constants.ts` | re-check Phase C.2 |
+| Leaderboard agent banner stays `0/0 — %` for hours | signals need ≥ 1 h before back-eval | wait, or generate more signals; `pnpm db:studio` to inspect `Signal.evaluatedAt` |
+| First web page load is blank | Turbopack still compiling the Shared Worker bundle | reload once |
+| `anthropic call failed` in smoke | API key invalid or account out of credit | double-check `ANTHROPIC_API_KEY`, top up Anthropic console |
 
 ## Scripts
 

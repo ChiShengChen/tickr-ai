@@ -11,7 +11,7 @@ import {
 } from 'lightweight-charts';
 
 export interface ChartBar {
-  time: number; // unix seconds
+  time: number;
   open: number;
   high: number;
   low: number;
@@ -21,12 +21,16 @@ export interface ChartBar {
 interface MiniChartProps {
   bars: ChartBar[];
   height?: number;
-  /** Horizontal price line, e.g. priceAtSignal. */
   marker?: { price: number; label?: string; color?: string };
-  /** Default line color for the close-price series. */
   color?: string;
 }
 
+/**
+ * Mounts lightweight-charts in a single useEffect that depends on `bars` and
+ * the marker, recreating the chart whenever the inputs change. This avoids
+ * the StrictMode double-mount race where data was set on a series that the
+ * cleanup had already nulled.
+ */
 export function MiniChart({
   bars,
   height = 140,
@@ -34,96 +38,100 @@ export function MiniChart({
   color = '#a089ff',
 }: MiniChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<'Area'> | null>(null);
-  const markerRef = useRef<ISeriesApi<'Line'> | null>(null);
 
   useEffect(() => {
-    if (!containerRef.current) return;
-    const chart = createChart(containerRef.current, {
-      width: containerRef.current.clientWidth,
-      height,
-      layout: {
-        background: { type: ColorType.Solid, color: 'transparent' },
-        textColor: '#9099ad',
-        fontSize: 11,
-      },
-      grid: {
-        horzLines: { color: 'rgba(38, 43, 58, 0.6)' },
-        vertLines: { visible: false },
-      },
-      timeScale: {
-        borderColor: 'rgba(38, 43, 58, 0.6)',
-        timeVisible: true,
-        secondsVisible: false,
-      },
-      rightPriceScale: {
-        borderColor: 'rgba(38, 43, 58, 0.6)',
-        scaleMargins: { top: 0.15, bottom: 0.1 },
-      },
-      handleScroll: false,
-      handleScale: false,
-      crosshair: { mode: 1 },
-    });
-    const area = chart.addAreaSeries({
-      lineColor: color,
-      topColor: 'rgba(160, 137, 255, 0.32)',
-      bottomColor: 'rgba(160, 137, 255, 0.02)',
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: true,
-    });
-    seriesRef.current = area;
-    chartRef.current = chart;
+    const el = containerRef.current;
+    if (!el || bars.length === 0) return;
 
-    const ro = new ResizeObserver(() => {
-      if (containerRef.current) {
-        chart.applyOptions({ width: containerRef.current.clientWidth });
+    let chart: IChartApi | null = null;
+    let series: ISeriesApi<'Area'> | null = null;
+    let ro: ResizeObserver | null = null;
+    let raf = 0;
+
+    function init() {
+      if (!el) return;
+      const w = el.clientWidth || el.getBoundingClientRect().width || 600;
+      chart = createChart(el, {
+        width: w,
+        height,
+        layout: {
+          background: { type: ColorType.Solid, color: 'transparent' },
+          textColor: '#9099ad',
+          fontSize: 11,
+        },
+        grid: {
+          horzLines: { color: 'rgba(38, 43, 58, 0.6)' },
+          vertLines: { visible: false },
+        },
+        timeScale: {
+          borderColor: 'rgba(38, 43, 58, 0.6)',
+          timeVisible: true,
+          secondsVisible: false,
+        },
+        rightPriceScale: {
+          borderColor: 'rgba(38, 43, 58, 0.6)',
+          scaleMargins: { top: 0.15, bottom: 0.1 },
+        },
+        handleScroll: false,
+        handleScale: false,
+        crosshair: { mode: 1 },
+      });
+
+      series = chart.addAreaSeries({
+        lineColor: color,
+        topColor: 'rgba(160, 137, 255, 0.45)',
+        bottomColor: 'rgba(160, 137, 255, 0.02)',
+        lineWidth: 2,
+        priceLineVisible: false,
+        lastValueVisible: true,
+      });
+
+      const data = bars
+        .map((b) => ({ time: b.time as UTCTimestamp, value: Number(b.close) }))
+        .filter((d) => Number.isFinite(d.value))
+        .sort((a, b) => (a.time as number) - (b.time as number));
+
+      series.setData(data);
+      chart.timeScale().fitContent();
+
+      if (marker) {
+        series.createPriceLine({
+          price: marker.price,
+          color: marker.color ?? '#9099ad',
+          lineStyle: LineStyle.Dashed,
+          lineWidth: 1,
+          axisLabelVisible: true,
+          title: marker.label ?? 'mark',
+        });
       }
-    });
-    ro.observe(containerRef.current);
+
+      ro = new ResizeObserver(() => {
+        if (!el || !chart) return;
+        chart.applyOptions({
+          width: el.clientWidth || 600,
+          height,
+        });
+      });
+      ro.observe(el);
+    }
+
+    // Defer initialization one frame so the modal's spring transition has
+    // committed layout — measuring `clientWidth` before that returns 0.
+    raf = requestAnimationFrame(init);
 
     return () => {
-      ro.disconnect();
-      chart.remove();
-      chartRef.current = null;
-      seriesRef.current = null;
-      markerRef.current = null;
-    };
-  }, [height, color]);
-
-  useEffect(() => {
-    const series = seriesRef.current;
-    const chart = chartRef.current;
-    if (!series || !chart) return;
-    const data = bars.map((b) => ({
-      time: b.time as UTCTimestamp,
-      value: b.close,
-    }));
-    series.setData(data);
-    chart.timeScale().fitContent();
-  }, [bars]);
-
-  useEffect(() => {
-    const series = seriesRef.current;
-    if (!series) return;
-    if (!marker) return;
-    const line = series.createPriceLine({
-      price: marker.price,
-      color: marker.color ?? '#9099ad',
-      lineStyle: LineStyle.Dashed,
-      lineWidth: 1,
-      axisLabelVisible: true,
-      title: marker.label ?? 'mark',
-    });
-    return () => {
+      cancelAnimationFrame(raf);
+      ro?.disconnect();
       try {
-        series.removePriceLine(line);
+        chart?.remove();
       } catch {
         /* chart already torn down */
       }
+      chart = null;
+      series = null;
     };
-  }, [marker?.price, marker?.label, marker?.color]);
+    // Recreate on bars / dimension / marker change. Cheap; <300 datapoints.
+  }, [bars, height, color, marker?.price, marker?.label, marker?.color]);
 
   return <div ref={containerRef} style={{ width: '100%', height }} />;
 }

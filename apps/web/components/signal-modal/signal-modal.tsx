@@ -238,12 +238,9 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
 
   const actionClass =
     signal.action === 'BUY' ? 'badge-buy' : signal.action === 'SELL' ? 'badge-sell' : 'badge-hold';
+  // lightweight-charts can't parse CSS variables — pass concrete hex.
   const markerColor =
-    signal.action === 'BUY'
-      ? 'var(--color-buy)'
-      : signal.action === 'SELL'
-        ? 'var(--color-sell)'
-        : 'var(--color-fg-muted)';
+    signal.action === 'BUY' ? '#22c55e' : signal.action === 'SELL' ? '#ef4444' : '#9099ad';
 
   return (
     <motion.div

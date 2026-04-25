@@ -1,3 +1,6 @@
+/* wallet-adapter styles ship a @import url(fonts.googleapis.com) — must come
+ * before any other rule, so import them BEFORE tailwindcss expands. */
+@import '@solana/wallet-adapter-react-ui/styles.css';
 @import 'tailwindcss';
 
 @theme {
@@ -14,9 +17,6 @@
   --color-sell: #ef4444;
   --color-warn: #f59e0b;
 }
-
-/* solana wallet adapter UI defaults need to pick up the dark palette */
-@import '@solana/wallet-adapter-react-ui/styles.css';
 
 html,
 body {

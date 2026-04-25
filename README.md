@@ -296,6 +296,57 @@ What's faked:
 
 What's real: Next.js, Socket.IO, Shared Worker, cross-tab broadcasting, browser notifications, tab-title flasher, favicon dot, Web Audio ding, Framer Motion transitions, TradingView chart rendering — anything purely UX.
 
+### Demo walk-through
+
+Once `pnpm dev` is up:
+
+1. Open `http://localhost:3000` — top-right corner shows a yellow **DEMO** badge.
+2. Click **Onboarding**. Wallet is optional in demo — just press **Skip →**.
+3. **Step 2 — Request permission** → click and allow OS notifications in the browser prompt.
+4. **Step 3 — Unlock & test** → click; you should hear a short Web Audio "ding".
+5. **Step 4 — Done →**.
+6. Land back on home (or any page; the Shared Worker is global).
+7. **Switch to another tab** (open google.com, YouTube, anything). Minimised window also counts. Just don't close the SignalDesk tab.
+8. Wait ~20 seconds — that's the `DEMO_INTERVAL_SECONDS` cadence.
+9. **OS notification pops up** in the corner: e.g. *SignalDesk · BUY AAPLx*. Title bar flashes, favicon turns into a red dot, the ding plays.
+10. **Click the notification** → SignalDesk tab refocuses → fullscreen modal opens with chart + TTL ring + rationale.
+11. Press **Yes, Execute** or **No, Skip**. Yes simulates Quoting → Awaiting signature → Submitting and shows a success toast.
+12. Open **`/portfolio`** to see the position + trade history + P&L update, **`/leaderboard`** for the agent banner + 5 fake wallets.
+
+#### "I want to see a signal while the tab is in front"
+
+When the tab is visible, signals show up as a sonner **toast** in the top-right instead of an OS notification — and BUY/SELL signals also auto-push you straight to `/signals/<id>` so the modal opens without you doing anything.
+
+You can also force one any time at **`/debug/trade`** — pick ticker + USD amount → **Sign & BUY**, runs the same simulated swap path immediately.
+
+#### Tail the ws-server log
+
+To confirm the demo loop is firing, watch `apps/ws-server`'s stdout. With `pnpm dev` running you'll see this in the same terminal:
+
+```
+[demo] fake signal loop running every 20s
+[http] signaldesk ws-server listening on :4000
+[demo] emitted AAPLx BUY id=...
+[demo] emitted NVDAx SELL id=...
+```
+
+Each 20s tick prints exactly one `[demo] emitted ...` line.
+
+#### Notification still not firing? checklist
+
+| Check | How to verify |
+|-------|---------------|
+| Browser notification permission granted | `/onboarding` step 2 must read **Status: granted**. Re-check if you accidentally blocked it (Chrome: lock icon in URL bar → Notifications → Allow). |
+| Tab really in the background | Switching to any other tab or window counts; minimising counts. **Don't close the SignalDesk tab** — the Shared Worker dies with it. |
+| ws-server still emitting | Should see one `[demo] emitted ...` line every 20s in the dev console. |
+| Shared Worker connected | Open SignalDesk tab → DevTools → Console; you should see a `connected` message from the worker. |
+| macOS system notifications enabled | System Settings → Notifications → Chrome/Safari/Firefox → **Allow Notifications**. |
+| Focus / Do Not Disturb off | macOS Control Centre top-right — check Focus is OFF. |
+
+The two most common offenders are **"didn't allow notifications in step 2"** and **"macOS system-level Do Not Disturb is on"**.
+
+---
+
 To go from demo to live: set `DEMO_MODE=false`, then follow *Getting started from zero* below (services, feed ids, mints, `db:push`).
 
 ---

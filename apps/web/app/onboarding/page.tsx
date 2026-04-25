@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { BARE_TICKERS, XSTOCKS, solscanTokenUrl } from '@signaldesk/shared';
 import { WalletButton } from '@/components/wallet/wallet-button';
 import { unlockSound, playSignalSound } from '@/components/notifications/sound-manager';
+import { isDemo } from '@/lib/demo/flag';
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -24,6 +25,7 @@ function StepHeader({ step, total, title }: { step: Step; total: number; title: 
 export default function OnboardingPage() {
   const [step, setStep] = useState<Step>(1);
   const { connected } = useWallet();
+  const demo = isDemo();
   const [notifPermission, setNotifPermission] = useState<NotificationPermission | 'unsupported'>(
     typeof Notification !== 'undefined' ? Notification.permission : 'unsupported',
   );
@@ -72,15 +74,23 @@ export default function OnboardingPage() {
             <p style={{ color: 'var(--color-fg-muted)', marginBottom: 16 }}>
               Pick any Solana wallet. Your signature is required only to approve swaps — we never
               hold keys or funds.
+              {demo && (
+                <>
+                  {' '}
+                  <strong style={{ color: 'var(--color-warn)' }}>
+                    Demo mode — wallet is optional, you can skip.
+                  </strong>
+                </>
+              )}
             </p>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
               <WalletButton />
               <button
                 className="btn btn-primary"
-                disabled={!connected}
+                disabled={!connected && !demo}
                 onClick={() => setStep(2)}
               >
-                Continue →
+                {demo && !connected ? 'Skip →' : 'Continue →'}
               </button>
             </div>
           </>
@@ -107,10 +117,10 @@ export default function OnboardingPage() {
               </button>
               <button
                 className="btn btn-primary"
-                disabled={notifPermission !== 'granted'}
+                disabled={notifPermission !== 'granted' && !demo}
                 onClick={() => setStep(3)}
               >
-                Continue →
+                {demo && notifPermission !== 'granted' ? 'Skip →' : 'Continue →'}
               </button>
             </div>
           </>
@@ -137,10 +147,10 @@ export default function OnboardingPage() {
               </button>
               <button
                 className="btn btn-primary"
-                disabled={!soundUnlocked}
+                disabled={!soundUnlocked && !demo}
                 onClick={() => setStep(4)}
               >
-                Continue →
+                {demo && !soundUnlocked ? 'Skip →' : 'Continue →'}
               </button>
             </div>
           </>

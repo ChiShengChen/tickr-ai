@@ -10,7 +10,8 @@ import {
   type BareTicker,
 } from '@signaldesk/shared';
 import { env } from './env.js';
-import { persistApprovalDecision, shutdownPrisma } from './db/index.js';
+import { getPrisma, persistApprovalDecision, shutdownPrisma } from './db/index.js';
+import { evaluatePendingSignals } from './signals/evaluator.js';
 import { emitSignal, startSignalLoop } from './signals/generator.js';
 
 const app = express();
@@ -51,6 +52,24 @@ app.post('/cron/generate', async (req: Request, res: Response) => {
   return res.json({ ok: true, signal });
 });
 
+// Vercel Cron also hits this every 5 minutes. Idempotent: only updates rows
+// where evaluatedAt IS NULL.
+app.post('/cron/evaluate', async (req: Request, res: Response) => {
+  const auth = req.header('authorization') ?? '';
+  if (auth !== `Bearer ${env.WS_CRON_SECRET}`) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  const p = getPrisma();
+  if (!p) return res.status(503).json({ error: 'DATABASE_URL not configured' });
+  try {
+    const summary = await evaluatePendingSignals(p);
+    return res.json({ ok: true, ...summary });
+  } catch (err) {
+    console.warn('[eval] cron run failed', err);
+    return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 const httpServer = createServer(app);
 const io = new IoServer(httpServer, {
   cors: { origin: env.NEXT_PUBLIC_APP_URL, credentials: true },
@@ -79,6 +98,43 @@ io.on('connection', (socket) => {
 });
 
 const stopFakeLoop = startSignalLoop(io);
+const stopEvalLoop = startEvaluatorLoop();
+
+function startEvaluatorLoop(): () => void {
+  const intervalMs = 5 * 60_000;
+  let stopped = false;
+  let busy = false;
+
+  async function tick() {
+    if (busy || stopped) return;
+    const p = getPrisma();
+    if (!p) return; // DATABASE_URL not configured — silently skip
+    busy = true;
+    try {
+      const summary = await evaluatePendingSignals(p);
+      if (summary.evaluated > 0 || summary.errors > 0) {
+        console.log(
+          `[eval] evaluated=${summary.evaluated} skipped=${summary.skipped} errors=${summary.errors}`,
+        );
+      }
+    } catch (err) {
+      console.warn('[eval] tick failed', err);
+    } finally {
+      busy = false;
+    }
+  }
+
+  // First run 30s after boot so signals from a previous process get caught up.
+  const kickoff = setTimeout(() => void tick(), 30_000);
+  const handle = setInterval(() => void tick(), intervalMs);
+  console.log(`[eval] back-evaluator running every ${intervalMs / 60_000} min`);
+
+  return () => {
+    stopped = true;
+    clearTimeout(kickoff);
+    clearInterval(handle);
+  };
+}
 
 httpServer.listen(env.WS_SERVER_PORT, () => {
   console.log(`[http] signaldesk ws-server listening on :${env.WS_SERVER_PORT}`);
@@ -87,6 +143,7 @@ httpServer.listen(env.WS_SERVER_PORT, () => {
 function shutdown(signal: string): void {
   console.log(`[ws] received ${signal}, shutting down`);
   stopFakeLoop();
+  stopEvalLoop();
   io.close();
   void shutdownPrisma();
   httpServer.close(() => process.exit(0));

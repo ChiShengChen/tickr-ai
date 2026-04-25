@@ -21,21 +21,32 @@ model User {
 }
 
 model Signal {
-  id            String       @id @default(cuid())
+  id            String         @id @default(cuid())
   ticker        String
   action        SignalAction
   confidence    Float
-  rationale     String       @db.Text
+  rationale     String         @db.Text
   ttlSeconds    Int
   priceAtSignal Float
   indicators    Json
-  createdAt     DateTime     @default(now())
+  createdAt     DateTime       @default(now())
   expiresAt     DateTime
+
+  // Back-evaluation: filled in by the 5-min cron once createdAt+1h has elapsed.
+  // priceAfter = close of the 5-min Pyth Benchmarks bar containing createdAt+1h.
+  // pctChange  = (priceAfter - priceAtSignal) / priceAtSignal.
+  // outcome    = WIN / LOSS / NEUTRAL (HOLD or |pctChange| < 0.1%).
+  evaluatedAt   DateTime?
+  priceAfter    Float?
+  pctChange     Float?
+  outcome       SignalOutcome?
+
   approvals     Approval[]
   trades        Trade[]
 
   @@index([createdAt])
   @@index([ticker, createdAt])
+  @@index([evaluatedAt])
 }
 
 model Approval {
@@ -85,4 +96,10 @@ enum SignalAction {
   BUY
   SELL
   HOLD
+}
+
+enum SignalOutcome {
+  WIN
+  LOSS
+  NEUTRAL
 }

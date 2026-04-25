@@ -32,6 +32,37 @@ function pythSymbol(ticker: BareTicker): string {
   return `Equity.US.${ticker}/USD`;
 }
 
+export async function getBarsRange(
+  ticker: BareTicker,
+  resolution: BarResolution,
+  fromUnix: number,
+  toUnix: number,
+): Promise<Bar[]> {
+  if (toUnix <= fromUnix) return [];
+  const url =
+    `${env.PYTH_BENCHMARKS_URL}/v1/shims/tradingview/history` +
+    `?symbol=${encodeURIComponent(pythSymbol(ticker))}` +
+    `&resolution=${resolution}` +
+    `&from=${fromUnix}&to=${toUnix}`;
+
+  const res = await fetch(url, { headers: { accept: 'application/json' } });
+  if (!res.ok) {
+    throw new Error(`Pyth benchmarks ${ticker}/${resolution} failed: ${res.status} ${res.statusText}`);
+  }
+  const json = (await res.json()) as TvResponse;
+  if (json.s === 'no_data' || !json.t) return [];
+  if (json.s !== 'ok' || !json.o || !json.h || !json.l || !json.c) {
+    throw new Error(`Pyth benchmarks ${ticker}/${resolution}: ${json.errmsg ?? json.s}`);
+  }
+  return json.t.map((time, i) => ({
+    time,
+    open: json.o![i] ?? 0,
+    high: json.h![i] ?? 0,
+    low: json.l![i] ?? 0,
+    close: json.c![i] ?? 0,
+  }));
+}
+
 export async function getHistoricalBars(
   ticker: BareTicker,
   resolution: BarResolution = '5',
@@ -52,28 +83,7 @@ export async function getHistoricalBars(
 
   const to = Math.floor(Date.now() / 1000);
   const from = to - hoursBack * 3600;
-  const url =
-    `${env.PYTH_BENCHMARKS_URL}/v1/shims/tradingview/history` +
-    `?symbol=${encodeURIComponent(pythSymbol(ticker))}` +
-    `&resolution=${resolution}` +
-    `&from=${from}&to=${to}`;
-
-  const res = await fetch(url, { headers: { accept: 'application/json' } });
-  if (!res.ok) {
-    throw new Error(`Pyth benchmarks ${ticker}/${resolution} failed: ${res.status} ${res.statusText}`);
-  }
-  const json = (await res.json()) as TvResponse;
-  if (json.s !== 'ok' || !json.t || !json.o || !json.h || !json.l || !json.c) {
-    throw new Error(`Pyth benchmarks ${ticker}/${resolution} no data: ${json.errmsg ?? json.s}`);
-  }
-
-  const bars: Bar[] = json.t.map((time, i) => ({
-    time,
-    open: json.o![i] ?? 0,
-    high: json.h![i] ?? 0,
-    low: json.l![i] ?? 0,
-    close: json.c![i] ?? 0,
-  }));
+  const bars = await getBarsRange(ticker, resolution, from, to);
 
   if (redis) {
     await redis.set(cacheKey, JSON.stringify(bars), { ex: 60 });

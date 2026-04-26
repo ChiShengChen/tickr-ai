@@ -1,556 +1,84 @@
-# SignalDesk
+# Hunch It
 
-AI-powered trading assistant for tokenized US stocks (xStocks) on Solana. Built for **Solana Frontier Hackathon 2026 — Consumer Track**.
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
-The desktop web app runs in the background. A signal engine cron-generates BUY/SELL signals using Pyth prices + technical indicators + Claude Haiku, pushes them through a Shared Worker so every open tab sees the same event, and fires an OS-level notification when the tab is hidden. Clicking the notification focuses the tab and opens a fullscreen approval modal (chart + TTL countdown + Yes/No). "Yes" runs a Jupiter Ultra swap (gas sponsored). One hour later a back-evaluator grades each signal against the actual market move.
+AI trading signals with one-tap execution for tokenized stocks & crypto on Solana.
 
----
+A signal engine watches live Pyth prices, runs technical indicators + Claude Haiku, and pushes BUY/SELL signals to your browser via a Shared Worker. Approve with one click to fire a gas-sponsored Jupiter Ultra swap. Each signal is auto-graded against the actual market move one hour later.
 
-## TL;DR
-
-> Feed **live Pyth equity prices** into **Claude Haiku** to produce AI trading signals, fan them to every open browser tab via a **Shared Worker + OS notifications**, let the user approve with a single click to fire a **gas-sponsored Jupiter Ultra swap** into an xStock, then auto-grade each signal an hour later against the actual Pyth move — all running on **Next.js + Socket.IO + Neon + Upstash**.
-
-### User flow (≈ 3 min)
+## How It Works
 
 ```
-Connect wallet (Phantom / Solflare / Backpack)
-  ↓
-Onboarding — allow OS notifications, unlock sound, review 8 monitored tickers
-  ↓
-Switch to another tab, leave SignalDesk running in the background
-  ↓  (~1 min later)
-OS notification pops: "BUY AAPLx · RSI oversold + MACD bullish"
-  tab-title flashes · favicon gets a red dot · Web Audio ding
-  ↓  click the notification
-Tab refocuses, fullscreen modal opens:
-  ticker · confidence ring · 24h chart (dashed line at priceAtSignal)
-  rationale · 30s TTL countdown (green → yellow → red)
-  ↓  press "Yes, Execute"
-Wallet prompts for signature → Jupiter Ultra /execute (gas sponsored)
-  ↓
-Portfolio page: new position with weighted avgCost + mark-to-market P&L + Solscan tx
-  ↓  (~1 h later)
-Leaderboard agent banner: the back-evaluator grades this signal WIN / LOSS / NEUTRAL
+Live Pyth prices + indicators + Claude Haiku → BUY/SELL signal
+  → OS notification (background tab) or toast (foreground)
+  → One-click approval → Jupiter Ultra swap (gas sponsored)
+  → Portfolio tracking + 1h back-evaluation → Leaderboard
 ```
 
-Full loop: **AI decides → user approves → on-chain swap → positions tracked → outcome graded → leaderboard updates**.
+## Tech Stack
 
-### Tech stack (one line each)
+| Layer | Stack |
+|---|---|
+| Frontend | Next.js 15, React 19, Tailwind v4, Framer Motion, Zustand, TanStack Query |
+| Wallet | Privy (email/Google/Apple + embedded wallet), Phantom / Solflare / Backpack |
+| Realtime | Socket.IO via Shared Worker, BroadcastChannel, OS Notifications, Web Audio |
+| Signals | Anthropic Claude Haiku 4.5, RSI / MACD / MA, Pyth Hermes + Benchmarks |
+| Swap | Jupiter Ultra API (gas sponsored) |
+| Storage | Neon Postgres (Prisma), Upstash Redis |
 
-**Frontend**
-- **Next.js 15 App Router + React 19** — framework
-- **Tailwind v4 + Framer Motion** — styling + transitions
-- **Zustand** — local state (in-memory signals)
-- **TanStack Query** — server state (portfolio / leaderboard auto-refetch)
-- **sonner** — toast
-- **lightweight-charts** — TradingView area chart inside the signal modal
-- **Shared Worker + broadcast-channel** — one WebSocket shared across every tab
-- **Web Audio API** — synthesised ding, no mp3 shipped
-- **Notification API** — native OS notifications (no Service Worker / no PWA)
+## Quick Start (Demo)
 
-**Wallet + on-chain**
-- **Privy** + **@solana/wallet-adapter-react** — email/Google/Apple login → embedded Solana wallet, or connect external wallet (Phantom / Solflare / Backpack)
-- **Jupiter Ultra API** — one-shot swap, **gas sponsored**
-- **SPL Token-2022** — xStocks mint standard
-
-**Data sources**
-- **Pyth Hermes** — live prices (`Equity.US.<TICKER>/USD` × 8)
-- **Pyth Benchmarks** — 5-min OHLC history (TradingView shim)
-
-**Backend**
-- **Node.js + Express + Socket.IO** — WebSocket server (Railway)
-- **Anthropic SDK / Claude Haiku 4.5** — structured-JSON signal generator
-- **technicalindicators** — RSI / MACD / MA20 / MA50
-- **Zod** — runtime validation for every payload
-
-**Storage**
-- **Neon Postgres + Prisma** — 5 tables (User / Signal / Approval / Trade / Position)
-- **Upstash Redis** — signal TTL cache + Pyth bar cache + LLM daily spend counter
-
-**Scheduling**
-- **Vercel Cron** — */1 min generate, */5 min evaluate
-- **ws-server setInterval** — same two loops in-process for local dev
-
----
-
-## Architecture
-
-### Repo layout
-
-```
-signaldesk/
-├── apps/
-│   ├── web/                          # Next.js 15 App Router (Vercel)
-│   │   ├── app/
-│   │   │   ├── layout.tsx, providers.tsx, page.tsx, globals.css
-│   │   │   ├── onboarding/           # 4-step wallet / notif / sound / tickers
-│   │   │   ├── portfolio/            # positions + trades + P&L (live)
-│   │   │   ├── leaderboard/          # agent banner + user accuracy
-│   │   │   ├── signals/[id]/         # SignalModal entry (in-memory or cold read)
-│   │   │   ├── debug/trade/          # manual Jupiter Ultra swap console
-│   │   │   └── api/
-│   │   │       ├── signals/{route,[id]}      # list + Postgres→Redis cold read
-│   │   │       ├── approvals/                # upsert User + Approval
-│   │   │       ├── trades/                   # persist swap + avgCost/position upsert
-│   │   │       ├── portfolio/                # mark-to-market via Hermes
-│   │   │       ├── leaderboard/              # agent + per-user ranking
-│   │   │       ├── bars/[ticker]/            # Pyth Benchmarks proxy for charts
-│   │   │       └── cron/{generate,evaluate}/ # Vercel Cron → ws-server
-│   │   ├── components/
-│   │   │   ├── wallet/               # Phantom / Solflare / Backpack
-│   │   │   ├── signal-modal/         # fullscreen + chart + TTL ring
-│   │   │   ├── charts/mini-chart.tsx # lightweight-charts area series
-│   │   │   ├── notifications/        # title-flash, favicon-dot, Web Audio ding, NotificationClient
-│   │   │   └── ui/                   # button, card
-│   │   ├── lib/
-│   │   │   ├── shared-worker/        # Shared Worker + broadcast-channel hook
-│   │   │   ├── jupiter/              # Ultra REST + useJupiterSwap hook (BUY/SELL)
-│   │   │   ├── pyth/                 # server-side Hermes REST helper
-│   │   │   ├── solana/, redis/, db/  # singletons
-│   │   │   └── store/                # Zustand (signals, walletUi)
-│   │   ├── prisma/schema.prisma      # authoritative schema (ws-server points here)
-│   │   └── vercel.json               # crons: */1 generate, */5 evaluate
-│   └── ws-server/                    # Node Socket.IO + signal engine (Railway)
-│       ├── src/
-│       │   ├── index.ts              # HTTP + Socket.IO + /cron/{generate,evaluate}
-│       │   ├── env.ts                # zod-parsed env (intervals, caps, bypass knobs)
-│       │   ├── signals/
-│       │   │   ├── generator.ts      # per-ticker loop with stagger + freshness gate
-│       │   │   ├── indicators.ts     # RSI / MACD / MA via `technicalindicators`
-│       │   │   ├── llm.ts            # Anthropic + rule fallback + daily USD cap
-│       │   │   └── evaluator.ts      # +1h back-eval → WIN / LOSS / NEUTRAL
-│       │   ├── pyth/{index,benchmarks}.ts  # Hermes + TradingView shim
-│       │   ├── db/index.ts           # PrismaClient (shares web's schema)
-│       │   └── cache/index.ts        # Upstash Redis + LLM spend counter
-│       └── scripts/
-│           ├── fetch-pyth-feeds.ts   # populates PYTH_FEED_IDS
-│           ├── verify-xstock-mints.ts # validates mints on-chain
-│           └── smoke-test.ts         # E2E: prices → bars → indicators → LLM
-└── packages/
-    ├── shared/                       # zod types, XSTOCKS, enums, helpers
-    └── config/                       # shared tsconfig
-```
-
-### Infrastructure
-
-| Layer       | Service                             | Role |
-|-------------|-------------------------------------|------|
-| Web         | Vercel                              | Next.js 15 App Router, Turbopack dev, Prisma client, Vercel Cron |
-| WS server   | Railway                             | Express + Socket.IO, 2 cron loops (generate + evaluate), PrismaClient reads the same schema |
-| DB          | Neon Postgres                       | Users / Signals / Approvals / Trades / Positions |
-| Cache       | Upstash Redis                       | signal TTL cache, Pyth bar 60s cache, LLM daily spend counter (`llm:spend:YYYY-MM-DD`) |
-| Oracle      | Pyth Hermes + Benchmarks            | live prices + historical 5-min bars + back-eval +1h bar |
-| Swap        | Jupiter Ultra (`/order` + `/execute`) | gas sponsored |
-| LLM         | Anthropic `claude-haiku-4-5-20251001` | JSON-mode analysis, rule-based fallback, daily USD cap |
-| Wallets     | Phantom / Solflare / Backpack       | `@solana/wallet-adapter-react` |
-
-### Event lifecycle
-
-```
-[Vercel Cron */1]   OR   [ws-server signal loop, interval=60s, stagger=2s/ticker]
-        │                            │
-        ▼                            ▼
-POST /api/cron/generate  →  ws-server POST /cron/generate
-                                     │
-                                     ▼
-                     generator.ts ──► getLatestPrices           (Hermes)
-                                  └─► getHistoricalBars         (Benchmarks, 5min/24h)
-                                  └─► computeIndicators         (RSI / MACD / MA)
-                                  └─► runLlmSignal              (Anthropic Haiku 4.5
-                                        ├─ 288→48 bar downsample
-                                        ├─ JSON extraction + zod validation
-                                        ├─ track cost vs LLM_DAILY_USD_CAP
-                                        └─ degraded=true rule fallback)
-                                  └─► freshness gate            (market hours or BYPASS)
-                                  └─► drop if conf < 0.7 or HOLD
-                                  └─► persist                   (Postgres + Redis TTL)
-                                  └─► io.emit('signal:new', signal)
-                                            │
-                  ┌─────────────────────────┼─────────────────────────┐
-                  ▼                                                   ▼
-       Shared Worker (1 per browser)                        every other tab
-                  │                                                   │
-            BroadcastChannel  ────────────────────────────────────────┘
-                  │
-                  ▼
-       NotificationClient (mounted in providers.tsx)
-                  │
-                  ├─ visible tab → sonner toast + router.push(/signals/:id)
-                  │       └─► SignalModal (Framer Motion entrance)
-                  │            ├─ chart: GET /api/bars/:ticker
-                  │            ├─ TTL ring (green→yellow→red)
-                  │            └─ [Yes / No]
-                  │
-                  └─ hidden tab → Notification() + title flash + favicon dot + Web Audio ding
-                         │
-                         └─ on click → window.focus() + push(/signals/:id)
-
-User clicks "Yes" in modal:
-    useJupiterSwap
-        │
-        ├─ BUY:  requestUltraOrder(USDC → xStock, $5 default)
-        ├─ SELL: getParsedTokenAccountsByOwner → sell whole xStock balance
-        ├─ wallet.signTransaction(VersionedTransaction)
-        ├─ executeUltraOrder                                 (gas sponsored)
-        │
-        ├─► POST /api/approvals  → upsert User + Approval
-        └─► POST /api/trades     → insert Trade, compute realizedPnl (SELL),
-                                   weighted-avg Position.avgCost (BUY)
-
-[Vercel Cron */5]  OR  [ws-server eval loop, every 5 min, first run 30s after boot]
-        │                     │
-        ▼                     ▼
-POST /api/cron/evaluate → ws-server /cron/evaluate
-                               │
-                               ▼
-                     evaluator.ts: for each Signal where
-                       createdAt <= now-1h AND evaluatedAt IS NULL (batch 50)
-                          ├─ getBarsRange(bare, '5', t-600, t+900)
-                          ├─ bar.close covering createdAt+1h → priceAfter
-                          ├─ pctChange = (priceAfter - priceAtSignal) / priceAtSignal
-                          ├─ classify:
-                          │     HOLD or |Δ| < 0.1% → NEUTRAL
-                          │     BUY + Δ > 0   or SELL + Δ < 0 → WIN
-                          │     opposite                       → LOSS
-                          └─ UPDATE signal (idempotent via WHERE evaluatedAt IS NULL)
-
-Leaderboard reads the graded signals:
-  - agent stats    : winRate = wins / (wins + losses)
-  - user accuracy  : (Yes+WIN ∪ No+LOSS) / non-NEUTRAL evaluated approvals
-```
-
-### Domain model (Prisma / Postgres)
-
-```
-User  ─┬─ Approval ─── Signal ─┬─ evaluatedAt, priceAfter, pctChange, outcome
-       │                       │
-       └─ Trade (realizedPnl) ─┘
-       │
-       └─ Position (weighted avgCost; unrealised P&L via Hermes at read time)
-
-Signal.action   : BUY | SELL | HOLD
-Signal.outcome  : WIN | LOSS | NEUTRAL
-Trade.status    : PENDING | CONFIRMED | FAILED
-```
-
-### Runtime safety rails
-
-- **No silent placeholders** — `requireMint()` / `requirePythFeedId()` throw if the constants are still empty, so Jupiter can't route USDC to an empty mint and Hermes can't be hit with a bad feed id.
-- **Market-hours gate** — `evaluateFreshness()` skips generation when the price is older than 15 minutes and the NYSE/Nasdaq session is closed. Override with `BYPASS_MARKET_HOURS=true` for after-hours demos.
-- **LLM daily cap** — per-day USD counter in Redis; breaching `LLM_DAILY_USD_CAP` flips the generator to the deterministic rule fallback and stamps `signal.degraded = true` so the modal shows "RULE FALLBACK".
-- **Schema validation** — every WS payload, HTTP body and LLM response passes through zod. LLM validation failure also falls back to the rule engine.
-- **Idempotent evaluator** — `WHERE evaluatedAt IS NULL` + update means re-runs are free; Vercel Cron and the in-process loop can coexist.
-- **Prisma singleton** — Next.js hot-reload no longer leaks connections.
-
-### Tunable env flags
-
-| Variable                          | Default | Purpose |
-|-----------------------------------|---------|---------|
-| `BYPASS_MARKET_HOURS`             | false   | emit signals outside US session (demo) |
-| `LLM_ENABLED`                     | true    | flip to force the rule fallback |
-| `LLM_DAILY_USD_CAP`               | 10      | Haiku 4.5 cost ceiling |
-| `SIGNAL_INTERVAL_SECONDS`         | 60      | one full ticker sweep per interval |
-| `TICKER_STAGGER_SECONDS`          | 2       | delay between per-ticker calls (Hermes + Anthropic politeness) |
-| `NEXT_PUBLIC_DEFAULT_TRADE_USD`   | 5       | default spend when the modal "Yes" path takes a BUY |
-| `WS_CRON_SECRET`                  | (required) | shared secret Vercel Cron ↔ ws-server |
-
----
-
-## Stack
-
-- **Web** — Next.js 15 App Router, React 19, Tailwind v4, Framer Motion, Zustand, TanStack Query, sonner
-- **Wallet / auth** — Privy (email / Google / Apple login → embedded Solana wallet, or external wallet via `@solana/wallet-adapter-react`)
-- **Realtime** — Socket.IO inside a **Shared Worker**, cross-tab via `broadcast-channel`
-- **Notifications** — native `Notification` API (no Service Worker, no PWA); Web Audio synth for the signal ding
-- **Charts** — `lightweight-charts` (TradingView)
-- **WS server** — Node + Socket.IO + Express
-- **LLM** — Anthropic SDK, `claude-haiku-4-5-20251001`
-- **Oracles** — Pyth Hermes (`@pythnetwork/hermes-client`) + Benchmarks tradingview shim
-- **Swap** — Jupiter Ultra API (`/ultra/v1/order` + `/execute`)
-- **DB** — Neon Postgres via Prisma
-- **Cache** — Upstash Redis
-
-## Demo mode (no credentials required)
-
-Just want to poke the UX? Flip **`DEMO_MODE=true`** (+ `NEXT_PUBLIC_DEMO_MODE=true`) and skip every external service.
+No API keys needed — demo mode simulates the full UX:
 
 ```bash
-git clone https://github.com/ChiShengChen/tickr-ai.git
-cd tickr-ai
+git clone https://github.com/Omnis-Labs/hunch-it.git
+cd hunch-it
 pnpm install
-cp .env.example .env                                # defaults are fine
-# edit .env: set both DEMO_MODE=true and NEXT_PUBLIC_DEMO_MODE=true
-cp .env apps/web/.env.local
-cp .env apps/ws-server/.env
-pnpm --filter @signaldesk/web exec prisma generate  # offline, no DB needed
-pnpm dev
-```
-
-What's faked:
-
-- **ws-server** emits a hand-crafted signal every `DEMO_INTERVAL_SECONDS` (default 20s) rotating through an 8-ticker library. No Pyth, no Anthropic, no DB writes, no back-evaluator.
-- **SignalModal** chart is a deterministic random walk seeded per-ticker.
-- **"Yes, Execute"** simulates Quoting → Awaiting signature → Submitting with realistic delays, returns a synthetic tx signature. No wallet is required (though you can still connect one for show).
-- **Portfolio** and **Leaderboard** read from in-memory Zustand fixtures. Every "Yes" appends a trade and updates the position with correct weighted avgCost so the P&L numbers move as you click.
-- The landing page shows a yellow **DEMO** badge next to the logo so there's no ambiguity.
-
-What's real: Next.js, Socket.IO, Shared Worker, cross-tab broadcasting, browser notifications, tab-title flasher, favicon dot, Web Audio ding, Framer Motion transitions, TradingView chart rendering — anything purely UX.
-
-### Demo walk-through
-
-Once `pnpm dev` is up:
-
-1. Open `http://localhost:3000` — top-right corner shows a yellow **DEMO** badge.
-2. Click **Onboarding**. Wallet is optional in demo — just press **Skip →**.
-3. **Step 2 — Request permission** → click and allow OS notifications in the browser prompt.
-4. **Step 3 — Unlock & test** → click; you should hear a short Web Audio "ding".
-5. **Step 4 — Done →**.
-6. Land back on home (or any page; the Shared Worker is global).
-7. **Switch to another tab** (open google.com, YouTube, anything). Minimised window also counts. Just don't close the SignalDesk tab.
-8. Wait ~20 seconds — that's the `DEMO_INTERVAL_SECONDS` cadence.
-9. **OS notification pops up** in the corner: e.g. *SignalDesk · BUY AAPLx*. Title bar flashes, favicon turns into a red dot, the ding plays.
-10. **Click the notification** → SignalDesk tab refocuses → fullscreen modal opens with chart + TTL ring + rationale.
-11. Press **Yes, Execute** or **No, Skip**. Yes simulates Quoting → Awaiting signature → Submitting and shows a success toast.
-12. Open **`/portfolio`** to see the position + trade history + P&L update, **`/leaderboard`** for the agent banner + 5 fake wallets.
-
-#### "I want to see a signal while the tab is in front"
-
-When the tab is visible, signals show up as a sonner **toast** in the top-right instead of an OS notification — and BUY/SELL signals also auto-push you straight to `/signals/<id>` so the modal opens without you doing anything.
-
-You can also force one any time at **`/debug/trade`** — pick ticker + USD amount → **Sign & BUY**, runs the same simulated swap path immediately.
-
-#### Tail the ws-server log
-
-To confirm the demo loop is firing, watch `apps/ws-server`'s stdout. With `pnpm dev` running you'll see this in the same terminal:
-
-```
-[demo] fake signal loop running every 20s
-[http] signaldesk ws-server listening on :4000
-[demo] emitted AAPLx BUY id=...
-[demo] emitted NVDAx SELL id=...
-```
-
-Each 20s tick prints exactly one `[demo] emitted ...` line.
-
-#### Notification still not firing? checklist
-
-| Check | How to verify |
-|-------|---------------|
-| Browser notification permission granted | `/onboarding` step 2 must read **Status: granted**. Re-check if you accidentally blocked it (Chrome: lock icon in URL bar → Notifications → Allow). |
-| Tab really in the background | Switching to any other tab or window counts; minimising counts. **Don't close the SignalDesk tab** — the Shared Worker dies with it. |
-| ws-server still emitting | Should see one `[demo] emitted ...` line every 20s in the dev console. |
-| Shared Worker connected | Open SignalDesk tab → DevTools → Console; you should see a `connected` message from the worker. |
-| macOS system notifications enabled | System Settings → Notifications → Chrome/Safari/Firefox → **Allow Notifications**. |
-| Focus / Do Not Disturb off | macOS Control Centre top-right — check Focus is OFF. |
-
-The two most common offenders are **"didn't allow notifications in step 2"** and **"macOS system-level Do Not Disturb is on"**.
-
----
-
-To go from demo to live: set `DEMO_MODE=false`, then follow *Getting started from zero* below (services, feed ids, mints, `db:push`).
-
----
-
-## Getting started from zero
-
-First-time end-to-end is ~30 minutes. Every step below is required for the **live** (non-demo) path.
-
-### Phase A — External services (~15 min)
-
-All free tiers are enough to demo.
-
-| # | Service | Purpose | What you copy |
-|---|---------|---------|---------------|
-| 1 | [Helius](https://helius.dev) | Solana RPC | `https://mainnet.helius-rpc.com/?api-key=<key>` |
-| 2 | [Anthropic Console](https://console.anthropic.com) | Claude Haiku LLM (add ≥ $5 credit) | `sk-ant-...` |
-| 3 | [Neon](https://neon.tech) | Postgres | `postgresql://user:pass@xxx.neon.tech/neondb?sslmode=require` |
-| 4 | [Upstash](https://upstash.com) | Redis (REST) | `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` |
-| 5 | `openssl rand -base64 32` | shared secret between Vercel Cron ↔ ws-server | the random string |
-| 6 | [Privy](https://dashboard.privy.io) | auth + embedded Solana wallets (email / Google / Apple). Free tier 1000 MAU. | `NEXT_PUBLIC_PRIVY_APP_ID=cm...` |
-| 7 | Phantom / Solflare / Backpack (optional) | browser wallet for users who prefer external — fund with **$1–2 USDC on mainnet** (mint `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`) | address stays local |
-
-### Phase B — Local env (~5 min)
-
-```bash
-# 1. Tooling
-node -v                                                   # needs >= 20
-corepack enable && corepack prepare pnpm@latest --activate
-pnpm -v                                                   # needs >= 9
-
-# 2. Clone
-git clone https://github.com/ChiShengChen/tickr-ai.git
-cd tickr-ai
-
-# 3. Install
-pnpm install
-
-# 4. Env
 cp .env.example .env
-# open .env and paste the values from Phase A:
-#   NEXT_PUBLIC_SOLANA_RPC_URL
-#   NEXT_PUBLIC_PRIVY_APP_ID
-#   ANTHROPIC_API_KEY
-#   DATABASE_URL
-#   UPSTASH_REDIS_REST_URL / _TOKEN
-#   WS_CRON_SECRET
-
-# 5. Mirror env into each app (ws-server reads its own .env; web reads .env.local)
+# Set DEMO_MODE=true and NEXT_PUBLIC_DEMO_MODE=true in .env
 cp .env apps/web/.env.local
 cp .env apps/ws-server/.env
-```
-
-### Phase C — Populate mints + feed ids (one-time, required)
-
-This is intentionally non-automated. `requireMint()` / `requirePythFeedId()` throw at load time if these are still empty — so real USDC cannot be routed to `""` and Hermes cannot be queried with a bad id.
-
-**C.1 Pyth feed ids**
-
-```bash
-pnpm --filter @signaldesk/ws-server fetch:pyth-feeds
-```
-
-Output:
-```
-AAPL: { ...XSTOCKS.AAPL, pythFeedId: '0xb5d0e0fa58a...' },  // Equity.US.AAPL/USD
-NVDA: { ...XSTOCKS.NVDA, pythFeedId: '0x...' },
-...
-```
-Paste each `pythFeedId` value into the matching entry in [`packages/shared/src/constants.ts`](packages/shared/src/constants.ts) → `XSTOCKS`.
-
-**C.2 xStock mints**
-
-Author `apps/ws-server/data/xstock-candidates.json` (source the mints from https://xstocks.com/products or by searching Solscan for `AAPLx` / `NVDAx` / …):
-
-```json
-{
-  "AAPL": "<AAPLx mint base58>",
-  "NVDA": "<NVDAx mint base58>",
-  "TSLA": "<TSLAx mint base58>",
-  "SPY":  "<SPYx mint base58>",
-  "QQQ":  "<QQQx mint base58>",
-  "MSFT": "<MSFTx mint base58>",
-  "GOOGL": "<GOOGLx mint base58>",
-  "META": "<METAx mint base58>"
-}
-```
-
-Run the verifier:
-
-```bash
-pnpm --filter @signaldesk/ws-server verify:xstocks
-```
-
-It checks each mint via Helius: owner must be SPL Token-2022 (`TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb`), decimals must be 8. On success it prints a paste-ready snippet; drop each `mint` value into the same `XSTOCKS` entries in `constants.ts`.
-
-### Phase D — Database
-
-```bash
-pnpm db:generate   # generate Prisma client (both apps)
-pnpm db:push       # create the 5 tables + SignalOutcome enum on Neon
-```
-
-### Phase E — Smoke test (required)
-
-Before `pnpm dev`, confirm the pipeline end-to-end:
-
-```bash
-pnpm --filter @signaldesk/ws-server smoke
-```
-
-Expected:
-```
---- 1. Pyth latest prices ---
-  AAPL   $230.12  conf±0.0042  age=3s  market=OPEN
-  NVDA   $920.45  ...
---- 2. AAPL historical bars (5min, 24h) ---
-  total bars: 288
-  first: ...
-  last:  ...
---- 3. AAPL indicators ---
-  RSI(14): 52.31
-  MACD:    macd=0.12 signal=0.08 hist=0.04
-  MA20:    229.80
-  MA50:    228.10
---- 4. LLM signal (AAPL) ---
-  action:     HOLD
-  confidence: 0.65
-  rationale:  RSI=52 neutral...
-  tokens:     in=820 out=115 cost=$0.0014
-✅ smoke test ok
-```
-
-If this fails, don't move on. See *Troubleshooting* below.
-
-### Phase F — Run it
-
-```bash
+pnpm --filter @hunch-it/web exec prisma generate
 pnpm dev
-# web        → http://localhost:3000
-# ws-server  → http://localhost:4000
-#              [signal] loop running interval=60s stagger=2s tickers=8
-#              [eval]   back-evaluator running every 5 min
 ```
 
-## End-to-end demo flow (~3 minutes)
+Open http://localhost:3000, complete onboarding, switch to another tab, and wait for a signal notification.
 
-1. Open http://localhost:3000.
-2. Click the wallet button in the top-right, connect Phantom/Solflare/Backpack.
-3. Go to `/onboarding` and complete all 4 steps: wallet → **allow browser notifications** (required) → "Unlock & test" to play the synth ding → review the 8 monitored tickers.
-4. Back to home. Switch to **another browser tab** (leave SignalDesk open in the background).
-5. Wait ~1 minute. An OS notification pops up, e.g. **SignalDesk · BUY AAPLx**. The title bar flashes, the favicon gets a red dot, the ding plays.
-6. Click the notification → SignalDesk tab refocuses → `/signals/<id>` opens the fullscreen modal (ticker, confidence ring, rationale, 24h chart with `priceAtSignal` dashed line, 30s TTL countdown).
-7. Click **Yes, execute BUY** → wallet prompts for a signature → toast confirms `BUY AAPLx confirmed`.
-8. Open `/portfolio` — the new position, a Trade row with a Solscan tx link, realised/unrealised P&L.
-9. Wait ~1 hour → `/leaderboard` agent banner's win rate starts moving as the back-evaluator grades the signal.
+## Repo Structure
 
-Or skip the wait with **`/debug/trade`** — pick ticker + USD amount → one-button sign & swap bypasses the signal flow entirely and still persists to the DB.
-
-## Troubleshooting
-
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| `[constants] mint address for AAPL is empty` | skipped Phase C.2 | author `data/xstock-candidates.json`, run `verify:xstocks`, paste into `constants.ts` |
-| `[constants] pyth feed id for AAPL is empty` | skipped Phase C.1 | run `fetch:pyth-feeds`, paste into `constants.ts` |
-| Notifications don't appear when tab is hidden | onboarding step 2 not completed | macOS: System Settings → Notifications → Chrome/Firefox/Safari → Allow. Re-run `/onboarding` |
-| Smoke test prints `market=CLOSED` and signals never fire | US market is closed (weekend / out-of-hours) | add `BYPASS_MARKET_HOURS=true` to `.env` and restart |
-| Modal "Yes" fails with `⚠ AAPLx mint not verified` | mint cell still empty in `constants.ts` | re-check Phase C.2 |
-| Leaderboard agent banner stays `0/0 — %` for hours | signals need ≥ 1 h before back-eval | wait, or generate more signals; `pnpm db:studio` to inspect `Signal.evaluatedAt` |
-| First web page load is blank | Turbopack still compiling the Shared Worker bundle | reload once |
-| `anthropic call failed` in smoke | API key invalid or account out of credit | double-check `ANTHROPIC_API_KEY`, top up Anthropic console |
+```
+hunch-it/
+├── apps/
+│   ├── web/           # Next.js 15 App Router (Vercel)
+│   └── ws-server/     # Node Socket.IO + signal engine (Railway)
+└── packages/
+    ├── shared/        # Zod types, xStock constants, enums
+    └── config/        # Shared tsconfig
+```
 
 ## Scripts
 
-| Command                                            | What it does |
-|----------------------------------------------------|--------------|
-| `pnpm dev`                                         | Run web + ws-server concurrently |
-| `pnpm dev:web`                                     | Next.js only |
-| `pnpm dev:ws`                                      | Socket.IO server only |
-| `pnpm build`                                       | Build every workspace |
-| `pnpm typecheck`                                   | `tsc --noEmit` in every workspace |
-| `pnpm db:push`                                     | Prisma `db push` to the configured DATABASE_URL |
-| `pnpm db:studio`                                   | Prisma Studio |
-| `pnpm --filter @signaldesk/ws-server smoke`        | Prices → bars → indicators → LLM end-to-end probe |
-| `pnpm --filter @signaldesk/ws-server fetch:pyth-feeds` | Resolve 8 Pyth equity feed ids |
-| `pnpm --filter @signaldesk/ws-server verify:xstocks`   | Verify mint addresses on-chain (Helius) |
+| Command | Description |
+|---|---|
+| `pnpm dev` | Run web + ws-server concurrently |
+| `pnpm build` | Build all workspaces |
+| `pnpm typecheck` | Type-check all workspaces |
+| `pnpm db:push` | Push Prisma schema to database |
+| `pnpm --filter @hunch-it/ws-server smoke` | End-to-end pipeline probe |
 
-## Status
+## Documentation
 
-Implemented (Phases 1–5):
+| Doc | Audience |
+|---|---|
+| [Getting Started](docs/getting-started.md) | Users & developers — demo mode, full setup (Phases A–F), scripts |
+| [Architecture](docs/architecture.md) | Developers — repo layout, infrastructure, event lifecycle, domain model |
+| [Troubleshooting](docs/troubleshooting.md) | Anyone — common issues and notification debugging |
+| [Contributing](CONTRIBUTING.md) | Contributors — workflow, branch naming, code style |
 
-- Monorepo + pnpm workspaces, shared zod types, xStock/Pyth constants with load-time asserts
-- Wallet flow, 4-step onboarding, landing page, Framer Motion polish
-- Real Pyth Hermes prices + Benchmarks historical bars + market-hours gate
-- Real Anthropic Haiku 4.5 signals with zod validation + daily USD cap + rule fallback
-- Socket.IO + Shared Worker + broadcast-channel cross-tab fan-out
-- Native Notification API with title flash / favicon dot / Web Audio synth
-- Fullscreen signal modal with TTL ring + lightweight-charts mini-chart
-- Jupiter Ultra integration (`/debug/trade` + modal "Yes" path via shared hook)
-- Persistence: Approvals / Trades / Positions with weighted avgCost + realised P&L
-- Portfolio with mark-to-market unrealised P&L, leaderboard with agent win rate
-- 5-minute signal-outcome back-evaluator (Vercel Cron + in-process loop)
+## Contributing
 
-Intentional out-of-scope:
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions and development workflow.
 
-- Multi-agent leaderboard (currently one agent: the Haiku generator)
-- Real-time Pyth WebSocket streaming (REST is sufficient)
-- Mobile browsers — SharedWorker support is inconsistent; desktop only
+## License
+
+[AGPL-3.0](LICENSE)

@@ -13,7 +13,7 @@ export function startTitleFlash(alertTitle: string, intervalMs = 900): void {
   originalTitle ??= document.title;
   let alt = true;
   handle = setInterval(() => {
-    document.title = alt ? alertTitle : (originalTitle ?? 'SignalDesk');
+    document.title = alt ? alertTitle : (originalTitle ?? 'Hunch It');
     alt = !alt;
   }, intervalMs);
   focusHandler = () => stopTitleFlash();

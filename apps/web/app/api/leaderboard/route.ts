@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { DEMO_LEADERBOARD } from '@signaldesk/shared';
+import { DEMO_LEADERBOARD } from '@hunch-it/shared';
 import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
 

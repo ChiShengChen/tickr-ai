@@ -8,7 +8,7 @@ import {
   type Bar,
   type DemoPortfolioPosition,
   type DemoPortfolioTrade,
-} from '@signaldesk/shared';
+} from '@hunch-it/shared';
 
 export { isDemo, isDemoServer } from './flag';
 

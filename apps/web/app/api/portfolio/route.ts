@@ -3,7 +3,7 @@ import {
   demoInitialPositions,
   demoInitialTrades,
   type XStockTicker,
-} from '@signaldesk/shared';
+} from '@hunch-it/shared';
 import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
 import { getCurrentPrices } from '@/lib/pyth';

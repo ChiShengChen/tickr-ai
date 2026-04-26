@@ -31,7 +31,7 @@ function drawAlertFavicon(): string {
   // Base tile (dark panel)
   ctx.fillStyle = '#12151d';
   ctx.fillRect(0, 0, size, size);
-  // Accent mark (SignalDesk "S")
+  // Accent mark (Hunch It badge)
   ctx.fillStyle = '#a089ff';
   ctx.font = 'bold 22px system-ui, sans-serif';
   ctx.textAlign = 'center';

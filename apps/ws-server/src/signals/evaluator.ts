@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import { type XStockTicker, xStockToBare } from '@signaldesk/shared';
+import { type XStockTicker, xStockToBare } from '@hunch-it/shared';
 import { getBarsRange } from '../pyth/benchmarks.js';
 
 const HORIZON_SECONDS = 60 * 60; // 1 hour

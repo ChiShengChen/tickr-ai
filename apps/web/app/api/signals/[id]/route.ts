@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { makeDemoSignal, type Signal } from '@signaldesk/shared';
+import { makeDemoSignal, type Signal } from '@hunch-it/shared';
 import { prisma } from '@/lib/db';
 import { isDemoServer } from '@/lib/demo/flag';
 import { getRedis } from '@/lib/redis';

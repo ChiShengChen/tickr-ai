@@ -4,13 +4,13 @@
  * into `packages/shared/src/constants.ts`.
  *
  * Run:
- *   pnpm --filter @signaldesk/ws-server fetch:pyth-feeds
+ *   pnpm --filter @hunch-it/ws-server fetch:pyth-feeds
  */
 
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BARE_TICKERS, type BareTicker } from '@signaldesk/shared';
+import { BARE_TICKERS, type BareTicker } from '@hunch-it/shared';
 import { env } from '../src/env.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

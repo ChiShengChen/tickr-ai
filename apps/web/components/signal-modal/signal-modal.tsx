@@ -11,7 +11,7 @@ import {
   xStockToBare,
   type Signal,
   type XStockTicker,
-} from '@signaldesk/shared';
+} from '@hunch-it/shared';
 import { useSharedWorker } from '@/lib/shared-worker/use-shared-worker';
 import { useJupiterSwap } from '@/lib/jupiter/use-jupiter-swap';
 import { isDemo, useDemoStore } from '@/lib/demo';
@@ -125,7 +125,7 @@ export function SignalModal({ signal, fallbackId, onClose }: SignalModalProps) {
     const mintForSwap = meta.mint || (demo ? DEMO_FAKE_MINT : '');
     if (!mintForSwap) {
       toast.error(
-        `${meta.symbol} mint is empty — run \`pnpm --filter @signaldesk/ws-server verify:xstocks\`.`,
+        `${meta.symbol} mint is empty — run \`pnpm --filter @hunch-it/ws-server verify:xstocks\`.`,
       );
       onClose(decision);
       return;

@@ -12,7 +12,7 @@ import {
   requirePythFeedId,
   type BareTicker,
   type PriceSnapshot,
-} from '@signaldesk/shared';
+} from '@hunch-it/shared';
 import { env } from '../env.js';
 
 let hermes: HermesClient | null = null;

@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { Signal } from '@signaldesk/shared';
+import type { Signal } from '@hunch-it/shared';
 import { SignalModal } from '@/components/signal-modal/signal-modal';
 import { useSignalsStore } from '@/lib/store/signals';
 

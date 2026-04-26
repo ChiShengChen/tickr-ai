@@ -1,12 +1,12 @@
-// SignalDesk — canonical constants for tickers, mints, oracles.
+// Hunch It — canonical constants for tickers, mints, oracles.
 //
 // xStock metadata. The `mint` and `pythFeedId` fields are intentionally empty
 // strings: Phase 2 requires verified-on-chain values, and we'd rather crash at
 // load than route real USDC to a placeholder address. Run the verifier scripts
 // in `apps/ws-server/scripts/` to populate them:
 //
-//   pnpm --filter @signaldesk/ws-server fetch:pyth-feeds   # writes pyth-feeds.json
-//   pnpm --filter @signaldesk/ws-server verify:xstocks     # writes xstock-mints.json
+//   pnpm --filter @hunch-it/ws-server fetch:pyth-feeds   # writes pyth-feeds.json
+//   pnpm --filter @hunch-it/ws-server verify:xstocks     # writes xstock-mints.json
 //
 // then paste the addresses below and re-run `pnpm typecheck`.
 
@@ -133,7 +133,7 @@ export function requireMint(ticker: BareTicker | XStockTicker): string {
     : XSTOCKS[ticker as BareTicker];
   if (!meta || !meta.mint) {
     throw new Error(
-      `[constants] mint address for ${ticker} is empty. Run \`pnpm --filter @signaldesk/ws-server verify:xstocks\` and paste the result into packages/shared/src/constants.ts.`,
+      `[constants] mint address for ${ticker} is empty. Run \`pnpm --filter @hunch-it/ws-server verify:xstocks\` and paste the result into packages/shared/src/constants.ts.`,
     );
   }
   return meta.mint;
@@ -145,7 +145,7 @@ export function requirePythFeedId(ticker: BareTicker | XStockTicker): string {
     : XSTOCKS[ticker as BareTicker];
   if (!meta || !meta.pythFeedId) {
     throw new Error(
-      `[constants] pyth feed id for ${ticker} is empty. Run \`pnpm --filter @signaldesk/ws-server fetch:pyth-feeds\` and paste the result into packages/shared/src/constants.ts.`,
+      `[constants] pyth feed id for ${ticker} is empty. Run \`pnpm --filter @hunch-it/ws-server fetch:pyth-feeds\` and paste the result into packages/shared/src/constants.ts.`,
     );
   }
   return meta.pythFeedId;

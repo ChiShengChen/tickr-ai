@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { ApprovalDecisionPayloadSchema } from '@signaldesk/shared';
+import { ApprovalDecisionPayloadSchema } from '@hunch-it/shared';
 import { prisma } from '@/lib/db';
 
 export async function POST(req: NextRequest) {

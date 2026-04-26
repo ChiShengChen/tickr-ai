@@ -1,18 +1,18 @@
 {
-  "name": "signaldesk",
+  "name": "hunch-it",
   "private": true,
   "version": "0.1.0",
-  "description": "SignalDesk — AI-powered trading assistant for tokenized US stocks on Solana",
+  "description": "Hunch It — AI trading signals with one-tap execution for tokenized stocks on Solana",
   "scripts": {
-    "dev": "pnpm -r --parallel --filter=@signaldesk/web --filter=@signaldesk/ws-server run dev",
-    "dev:web": "pnpm --filter @signaldesk/web dev",
-    "dev:ws": "pnpm --filter @signaldesk/ws-server dev",
+    "dev": "pnpm -r --parallel --filter=@hunch-it/web --filter=@hunch-it/ws-server run dev",
+    "dev:web": "pnpm --filter @hunch-it/web dev",
+    "dev:ws": "pnpm --filter @hunch-it/ws-server dev",
     "build": "pnpm -r run build",
     "lint": "pnpm -r run lint",
     "typecheck": "pnpm -r run typecheck",
-    "db:push": "pnpm --filter @signaldesk/web exec prisma db push",
-    "db:generate": "pnpm --filter @signaldesk/web exec prisma generate",
-    "db:studio": "pnpm --filter @signaldesk/web exec prisma studio",
+    "db:push": "pnpm --filter @hunch-it/web exec prisma db push",
+    "db:generate": "pnpm --filter @hunch-it/web exec prisma generate",
+    "db:studio": "pnpm --filter @hunch-it/web exec prisma studio",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\""
   },
   "devDependencies": {

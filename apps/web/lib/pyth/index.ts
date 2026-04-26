@@ -7,7 +7,7 @@ import {
   bareToXStock,
   type BareTicker,
   type XStockTicker,
-} from '@signaldesk/shared';
+} from '@hunch-it/shared';
 
 interface ParsedPrice {
   id: string;

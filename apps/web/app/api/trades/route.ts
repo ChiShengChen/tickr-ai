@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
-import { TradeStatusSchema } from '@signaldesk/shared';
+import { TradeStatusSchema } from '@hunch-it/shared';
 import { prisma } from '@/lib/db';
 
 const TradeInputSchema = z.object({

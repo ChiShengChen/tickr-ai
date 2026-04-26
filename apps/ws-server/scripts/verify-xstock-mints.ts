@@ -6,7 +6,7 @@
  * can paste into `packages/shared/src/constants.ts`.
  *
  * Run:
- *   pnpm --filter @signaldesk/ws-server verify:xstocks
+ *   pnpm --filter @hunch-it/ws-server verify:xstocks
  *
  * Candidate file format (`data/xstock-candidates.json`):
  *   {
@@ -28,7 +28,7 @@ import {
   TOKEN_2022_PROGRAM_ID,
   XSTOCKS,
   type BareTicker,
-} from '@signaldesk/shared';
+} from '@hunch-it/shared';
 import { env } from '../src/env.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

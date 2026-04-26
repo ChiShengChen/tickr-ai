@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { DEMO_LEADERBOARD } from '@signaldesk/shared';
+import { DEMO_LEADERBOARD } from '@hunch-it/shared';
 import { isDemo } from '@/lib/demo';
 
 interface AgentStats {
@@ -155,7 +155,7 @@ function AgentBanner({ stats, loading }: { stats?: AgentStats; loading: boolean 
           <div style={{ fontSize: 12, color: 'var(--color-fg-muted)', letterSpacing: '0.06em' }}>
             AGENT · claude-haiku-4-5
           </div>
-          <div style={{ fontSize: 24, fontWeight: 700, marginTop: 4 }}>SignalDesk core</div>
+          <div style={{ fontSize: 24, fontWeight: 700, marginTop: 4 }}>Hunch It core</div>
           <div style={{ fontSize: 13, color: 'var(--color-fg-muted)', marginTop: 4 }}>
             Each signal is graded 1 h after creation against the Pyth Benchmarks 5-min close. Win = price
             moved in the predicted direction by &gt; 0.1 %. NEUTRAL excluded from win-rate.

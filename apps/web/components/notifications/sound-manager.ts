@@ -73,7 +73,7 @@ export function unlockSound(): void {
   unlocked = true;
   if (typeof window !== 'undefined') {
     try {
-      window.localStorage.setItem('signaldesk.soundUnlocked', '1');
+      window.localStorage.setItem('hunch-it.soundUnlocked', '1');
     } catch {
       /* noop */
     }
@@ -84,7 +84,7 @@ export function isSoundUnlocked(): boolean {
   if (unlocked) return true;
   if (typeof window === 'undefined') return false;
   try {
-    unlocked = window.localStorage.getItem('signaldesk.soundUnlocked') === '1';
+    unlocked = window.localStorage.getItem('hunch-it.soundUnlocked') === '1';
   } catch {
     /* noop */
   }

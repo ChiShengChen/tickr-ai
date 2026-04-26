@@ -8,7 +8,7 @@ import {
   CronGenerateRequestSchema,
   WsClientEvents,
   type BareTicker,
-} from '@signaldesk/shared';
+} from '@hunch-it/shared';
 import { env } from './env.js';
 import { getPrisma, persistApprovalDecision, shutdownPrisma } from './db/index.js';
 import { evaluatePendingSignals } from './signals/evaluator.js';
@@ -141,7 +141,7 @@ function startEvaluatorLoop(): () => void {
 }
 
 httpServer.listen(env.WS_SERVER_PORT, () => {
-  console.log(`[http] signaldesk ws-server listening on :${env.WS_SERVER_PORT}`);
+  console.log(`[http] hunch-it ws-server listening on :${env.WS_SERVER_PORT}`);
 });
 
 function shutdown(signal: string): void {

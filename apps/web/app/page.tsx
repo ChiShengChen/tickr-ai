@@ -38,7 +38,7 @@ export default function LandingPage() {
             gap: 10,
           }}
         >
-          SignalDesk<span style={{ color: 'var(--color-accent)' }}>.</span>
+          Hunch It<span style={{ color: 'var(--color-accent)' }}>.</span>
           {isDemo() && (
             <span
               className="badge"
@@ -82,7 +82,7 @@ export default function LandingPage() {
           <span style={{ color: 'var(--color-accent)' }}>tokenized US stocks.</span>
         </h1>
         <p style={{ fontSize: 18, color: 'var(--color-fg-muted)', maxWidth: 640 }}>
-          Leave SignalDesk running in a background tab. Our signal engine watches xStocks on Pyth
+          Leave Hunch It running in a background tab. Our signal engine watches xStocks on Pyth
           and pings you with a 30-second window to approve a Jupiter Ultra swap — gas sponsored.
         </p>
       </motion.section>

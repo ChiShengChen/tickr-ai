@@ -16,9 +16,9 @@ import {
   WsServerEvents,
   type ApprovalDecisionPayload,
   type Signal,
-} from '@signaldesk/shared';
+} from '@hunch-it/shared';
 
-export const BROADCAST_CHANNEL = 'signaldesk';
+export const BROADCAST_CHANNEL = 'hunch-it';
 
 export type TabToWorker =
   | { type: 'hello' }

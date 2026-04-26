@@ -1,4 +1,4 @@
-import type { Bar } from '@signaldesk/shared';
+import type { Bar } from '@hunch-it/shared';
 
 export interface MacdValue {
   macd: number;

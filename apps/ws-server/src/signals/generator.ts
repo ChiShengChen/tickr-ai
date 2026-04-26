@@ -9,7 +9,7 @@ import {
   type BareTicker,
   type IndicatorSnapshot,
   type Signal,
-} from '@signaldesk/shared';
+} from '@hunch-it/shared';
 import type { Server as IoServer } from 'socket.io';
 import { cacheSignal } from '../cache/index.js';
 import { persistSignal } from '../db/index.js';

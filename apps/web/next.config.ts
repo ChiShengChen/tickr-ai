@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
     // Allow importing TS from sibling workspaces (packages/shared).
     externalDir: true,
   },
-  transpilePackages: ['@signaldesk/shared'],
+  transpilePackages: ['@hunch-it/shared'],
   webpack: (config) => {
     // Some wallet adapter deps ship CommonJS + Node polyfills. These two
     // are the common offenders in Solana front-end bundles.

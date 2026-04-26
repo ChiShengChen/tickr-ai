@@ -8,7 +8,7 @@ import {
   TOKEN_2022_PROGRAM_ID,
   USDC_DECIMALS,
   USDC_MINT,
-} from '@signaldesk/shared';
+} from '@hunch-it/shared';
 import {
   executeUltraOrder,
   requestUltraOrder,

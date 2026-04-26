@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import type { Signal } from '@signaldesk/shared';
+import type { Signal } from '@hunch-it/shared';
 import { env } from '../env.js';
 
 let prisma: PrismaClient | null = null;

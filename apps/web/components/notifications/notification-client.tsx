@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import type { Signal } from '@signaldesk/shared';
+import type { Signal } from '@hunch-it/shared';
 import { useSharedWorker } from '@/lib/shared-worker/use-shared-worker';
 import { useSignalsStore } from '@/lib/store/signals';
 import { setAlertFavicon, clearAlertFavicon } from './favicon-dot';
@@ -45,13 +45,13 @@ export function NotificationClient() {
       }
 
       // Hidden tab: system notification + attention UI.
-      startTitleFlash(`🔔 ${signal.action} ${signal.ticker} — SignalDesk`);
+      startTitleFlash(`🔔 ${signal.action} ${signal.ticker} — Hunch It`);
       setAlertFavicon();
       playSignalSound();
 
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try {
-          const n = new Notification(`SignalDesk · ${signal.action} ${signal.ticker}`, {
+          const n = new Notification(`Hunch It · ${signal.action} ${signal.ticker}`, {
             body: signal.rationale.slice(0, 200),
             tag: signal.id,
             requireInteraction: true,

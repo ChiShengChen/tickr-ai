@@ -8,9 +8,9 @@ import {
   WsServerEvents,
   type ApprovalDecisionPayload,
   type Signal,
-} from '@signaldesk/shared';
+} from '@hunch-it/shared';
 
-export const BROADCAST_CHANNEL = 'signaldesk';
+export const BROADCAST_CHANNEL = 'hunch-it';
 
 type WorkerToTab =
   | { type: 'connected' }
@@ -31,7 +31,7 @@ interface UseSharedWorkerReturn {
 }
 
 /**
- * Attaches the current tab to the SignalDesk Shared Worker and subscribes to
+ * Attaches the current tab to the Hunch It Shared Worker and subscribes to
  * signal broadcasts. Falls back gracefully in browsers without SharedWorker by
  * still listening to the broadcast-channel (which other tabs / extensions may
  * post to).

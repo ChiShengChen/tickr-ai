@@ -10,7 +10,7 @@ import {
   XSTOCKS,
   solscanTokenUrl,
   type BareTicker,
-} from '@signaldesk/shared';
+} from '@hunch-it/shared';
 import { useJupiterSwap, type SwapResult } from '@/lib/jupiter/use-jupiter-swap';
 import { WalletButton } from '@/components/wallet/wallet-button';
 
@@ -30,7 +30,7 @@ export default function DebugTradePage() {
     if (!publicKey) return;
     if (!mintReady) {
       toast.error(
-        `${meta.symbol} mint not yet verified — run \`pnpm --filter @signaldesk/ws-server verify:xstocks\`.`,
+        `${meta.symbol} mint not yet verified — run \`pnpm --filter @hunch-it/ws-server verify:xstocks\`.`,
       );
       return;
     }
@@ -174,7 +174,7 @@ export default function DebugTradePage() {
         ) : (
           <div style={{ fontSize: 12, color: 'var(--color-warn)', marginBottom: 12 }}>
             ⚠ {meta.symbol} mint is empty. Run{' '}
-            <code>pnpm --filter @signaldesk/ws-server verify:xstocks</code>.
+            <code>pnpm --filter @hunch-it/ws-server verify:xstocks</code>.
           </div>
         )}
         <button

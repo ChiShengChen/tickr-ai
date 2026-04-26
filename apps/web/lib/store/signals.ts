@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { Signal } from '@signaldesk/shared';
+import type { Signal } from '@hunch-it/shared';
 
 interface SignalsState {
   signalsById: Record<string, Signal>;

@@ -1,5 +1,5 @@
 {
-  "name": "@signaldesk/ws-server",
+  "name": "@hunch-it/ws-server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -22,7 +22,7 @@
     "@anthropic-ai/sdk": "^0.70.0",
     "@prisma/client": "^6.1.0",
     "@pythnetwork/hermes-client": "^2.0.0",
-    "@signaldesk/shared": "workspace:*",
+    "@hunch-it/shared": "workspace:*",
     "@upstash/redis": "^1.34.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.0",

@@ -1,7 +1,7 @@
 /**
  * End-to-end sanity check before deploying.
  *
- *   pnpm --filter @signaldesk/ws-server smoke
+ *   pnpm --filter @hunch-it/ws-server smoke
  *
  * Steps:
  *   1. getLatestPrices(all) → print
@@ -10,7 +10,7 @@
  *   4. generateLlmSignal(...AAPL) → print response + token usage
  */
 
-import { BARE_TICKERS } from '@signaldesk/shared';
+import { BARE_TICKERS } from '@hunch-it/shared';
 import { getHistoricalBars } from '../src/pyth/benchmarks.js';
 import { evaluateFreshness, getLatestPrices } from '../src/pyth/index.js';
 import { computeIndicators } from '../src/signals/indicators.js';

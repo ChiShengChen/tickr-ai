@@ -5,7 +5,7 @@ import {
   bareToXStock,
   makeDemoBars,
   type BareTicker,
-} from '@signaldesk/shared';
+} from '@hunch-it/shared';
 import { isDemoServer } from '@/lib/demo/flag';
 
 interface TvResponse {

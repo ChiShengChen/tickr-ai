@@ -4,7 +4,7 @@ import {
   MIN_ACTIONABLE_CONFIDENCE,
   type Bar,
   type BareTicker,
-} from '@signaldesk/shared';
+} from '@hunch-it/shared';
 import { env } from '../env.js';
 import { getLlmSpendUsd, recordLlmSpendUsd } from '../cache/index.js';
 import type { IndicatorResult } from './indicators.js';

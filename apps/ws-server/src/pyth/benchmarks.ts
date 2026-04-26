@@ -11,7 +11,7 @@
  * cron loop doesn't hammer Pyth.
  */
 
-import type { Bar, BareTicker } from '@signaldesk/shared';
+import type { Bar, BareTicker } from '@hunch-it/shared';
 import { env } from '../env.js';
 import { getRedis } from '../cache/index.js';
 

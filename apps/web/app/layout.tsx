@@ -4,7 +4,7 @@ import { Providers } from './providers';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'SignalDesk',
+  title: 'Hunch It',
   description: 'AI trading signals for tokenized US stocks on Solana',
 };
 

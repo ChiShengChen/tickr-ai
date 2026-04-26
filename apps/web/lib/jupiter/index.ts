@@ -10,7 +10,7 @@ import {
   JUPITER_ULTRA_EXECUTE,
   JUPITER_ULTRA_ORDER,
   USDC_MINT,
-} from '@signaldesk/shared';
+} from '@hunch-it/shared';
 
 const BASE =
   process.env.NEXT_PUBLIC_JUPITER_API_BASE ?? 'https://lite-api.jup.ag';

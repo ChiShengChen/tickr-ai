@@ -1,7 +1,7 @@
 // Upstash Redis REST client. No-op when creds are missing.
 import { Redis } from '@upstash/redis';
 import { env } from '../env.js';
-import type { Signal } from '@signaldesk/shared';
+import type { Signal } from '@hunch-it/shared';
 
 let client: Redis | null = null;
 

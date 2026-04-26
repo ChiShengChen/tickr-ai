@@ -4,7 +4,7 @@ import { useWallet } from '@/lib/wallet/use-wallet';
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 import { useState } from 'react';
-import { BARE_TICKERS, XSTOCKS, solscanTokenUrl } from '@signaldesk/shared';
+import { BARE_TICKERS, XSTOCKS, solscanTokenUrl } from '@hunch-it/shared';
 import { WalletButton } from '@/components/wallet/wallet-button';
 import { unlockSound, playSignalSound } from '@/components/notifications/sound-manager';
 import { isDemo } from '@/lib/demo/flag';
@@ -160,7 +160,7 @@ export default function OnboardingPage() {
           <>
             <StepHeader step={4} total={4} title="What we monitor" />
             <p style={{ color: 'var(--color-fg-muted)', marginBottom: 16 }}>
-              SignalDesk currently watches these 8 tokenized US stocks via Pyth + xStocks (SPL
+              Hunch It currently watches these 8 tokenized US stocks via Pyth + xStocks (SPL
               Token-2022). Click any address to inspect on Solscan.
             </p>
             <div

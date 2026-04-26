@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet } from '@/lib/wallet/use-wallet';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {

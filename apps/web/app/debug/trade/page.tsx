@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet } from '@/lib/wallet/use-wallet';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {

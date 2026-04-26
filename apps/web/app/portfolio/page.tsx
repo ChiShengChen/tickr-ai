@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet } from '@/lib/wallet/use-wallet';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useMemo } from 'react';

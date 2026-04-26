@@ -49,7 +49,7 @@ Full loop: **AI decides → user approves → on-chain swap → positions tracke
 - **Notification API** — native OS notifications (no Service Worker / no PWA)
 
 **Wallet + on-chain**
-- **@solana/wallet-adapter-react** — Phantom / Solflare / Backpack
+- **Privy** + **@solana/wallet-adapter-react** — email/Google/Apple login → embedded Solana wallet, or connect external wallet (Phantom / Solflare / Backpack)
 - **Jupiter Ultra API** — one-shot swap, **gas sponsored**
 - **SPL Token-2022** — xStocks mint standard
 
@@ -259,7 +259,7 @@ Trade.status    : PENDING | CONFIRMED | FAILED
 ## Stack
 
 - **Web** — Next.js 15 App Router, React 19, Tailwind v4, Framer Motion, Zustand, TanStack Query, sonner
-- **Wallet** — `@solana/wallet-adapter-react` (Phantom / Solflare / Backpack)
+- **Wallet / auth** — Privy (email / Google / Apple login → embedded Solana wallet, or external wallet via `@solana/wallet-adapter-react`)
 - **Realtime** — Socket.IO inside a **Shared Worker**, cross-tab via `broadcast-channel`
 - **Notifications** — native `Notification` API (no Service Worker, no PWA); Web Audio synth for the signal ding
 - **Charts** — `lightweight-charts` (TradingView)
@@ -366,7 +366,8 @@ All free tiers are enough to demo.
 | 3 | [Neon](https://neon.tech) | Postgres | `postgresql://user:pass@xxx.neon.tech/neondb?sslmode=require` |
 | 4 | [Upstash](https://upstash.com) | Redis (REST) | `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` |
 | 5 | `openssl rand -base64 32` | shared secret between Vercel Cron ↔ ws-server | the random string |
-| 6 | Phantom / Solflare / Backpack | browser wallet — fund with **$1–2 USDC on mainnet** (mint `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`) | address stays local |
+| 6 | [Privy](https://dashboard.privy.io) | auth + embedded Solana wallets (email / Google / Apple). Free tier 1000 MAU. | `NEXT_PUBLIC_PRIVY_APP_ID=cm...` |
+| 7 | Phantom / Solflare / Backpack (optional) | browser wallet for users who prefer external — fund with **$1–2 USDC on mainnet** (mint `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`) | address stays local |
 
 ### Phase B — Local env (~5 min)
 
@@ -385,8 +386,9 @@ pnpm install
 
 # 4. Env
 cp .env.example .env
-# open .env and paste the 6 values from Phase A:
+# open .env and paste the values from Phase A:
 #   NEXT_PUBLIC_SOLANA_RPC_URL
+#   NEXT_PUBLIC_PRIVY_APP_ID
 #   ANTHROPIC_API_KEY
 #   DATABASE_URL
 #   UPSTASH_REDIS_REST_URL / _TOKEN

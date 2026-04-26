@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { useConnection, useWallet } from '@solana/wallet-adapter-react';
+import { useConnection } from '@solana/wallet-adapter-react';
 import { PublicKey, VersionedTransaction } from '@solana/web3.js';
+import { useWallet } from '@/lib/wallet/use-wallet';
 import {
   TOKEN_2022_PROGRAM_ID,
   USDC_DECIMALS,

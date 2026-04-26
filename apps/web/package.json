@@ -16,6 +16,7 @@
     "@prisma/client": "^6.1.0",
     "@privy-io/react-auth": "^3.22.0",
     "@pythnetwork/hermes-client": "^2.0.0",
+    "@solana-program/memo": "^0.8.0",
     "@signaldesk/shared": "workspace:*",
     "@solana/wallet-adapter-base": "^0.9.23",
     "@solana/wallet-adapter-react": "^0.15.35",

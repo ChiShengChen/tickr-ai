@@ -294,5 +294,12 @@ export const TriggerHitPayloadSchema = z.object({
   triggerPriceUsd: z.number(),
   currentPriceUsd: z.number(),
   sizeUsd: z.number(),
+  /** xStock units to sell (TP/SL) or buy (BUY_TRIGGER, usually null —
+   *  BUY size is dollar-denominated via sizeUsd). Nullable so callers
+   *  can fall back to wallet balance, but for TP/SL on a synthetic
+   *  exit leg the trigger-monitor will populate this from the Order
+   *  row written at BUY-fill time so the close sells exactly the
+   *  position's tokens, not the full wallet balance. */
+  tokenAmount: z.number().nullable().optional(),
 });
 export type TriggerHitPayload = z.infer<typeof TriggerHitPayloadSchema>;

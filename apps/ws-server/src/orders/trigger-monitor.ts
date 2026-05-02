@@ -110,6 +110,12 @@ export async function runTriggerMonitor(
         triggerPriceUsd: trigger,
         currentPriceUsd,
         sizeUsd: order.sizeUsd.toNumber(),
+        // For TP/SL the BUY-fill settle endpoint stamped the Order with
+        // the exact tokens to sell — pass it through so the client sells
+        // the position size, not the full wallet balance (which can
+        // include unrelated dust or a separate position in the same
+        // mint). BUY_TRIGGER orders don't have this set.
+        tokenAmount: order.tokenAmount?.toNumber() ?? null,
       });
     }
   }

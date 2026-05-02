@@ -123,6 +123,12 @@ export function NotificationClient() {
       });
 
       try {
+        // For TP/SL we sell exactly the position's token count
+        // (populated on the synthetic exit Order at BUY-fill time and
+        // forwarded via TriggerHitPayload.tokenAmount). Falling back to
+        // sellAll would sweep unrelated dust or another position
+        // sharing the same mint — see the manual-close side-effect we
+        // hit on 2026-05-02 where the close sold double the DB amount.
         const result =
           payload.kind === 'BUY_TRIGGER'
             ? await swap({
@@ -131,12 +137,19 @@ export function NotificationClient() {
                 xStockDecimals: decimals,
                 usdAmount: payload.sizeUsd,
               })
-            : await swap({
-                direction: 'SELL',
-                xStockMint: mint,
-                xStockDecimals: decimals,
-                sellAll: true,
-              });
+            : payload.tokenAmount && payload.tokenAmount > 0
+              ? await swap({
+                  direction: 'SELL',
+                  xStockMint: mint,
+                  xStockDecimals: decimals,
+                  tokenAmount: payload.tokenAmount,
+                })
+              : await swap({
+                  direction: 'SELL',
+                  xStockMint: mint,
+                  xStockDecimals: decimals,
+                  sellAll: true,
+                });
 
         if (result.exec.status !== 'Success') {
           throw new Error(result.exec.error ?? 'swap failed');

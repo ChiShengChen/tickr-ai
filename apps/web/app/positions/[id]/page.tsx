@@ -263,6 +263,10 @@ export default function PositionDetailPage() {
         positionId: position.id,
         meta: { mint: meta.mint, decimals: meta.decimals },
         fallbackMarkPrice: position.markPrice,
+        // Sell exactly the position size — avoids sweeping unrelated
+        // dust or a sibling position in the same mint, which is what
+        // bit us on 2026-05-02 (sold 2× DB amount).
+        tokenAmount: position.tokenAmount,
       });
       closePosition(position.id, 'USER_CLOSE', position.markPrice);
       toast.success(`${position.ticker} closed.`);

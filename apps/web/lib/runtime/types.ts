@@ -60,6 +60,11 @@ export interface Runtime {
     /** Mark price for the local PnL fallback when the swap output
      *  doesn't return an executionPrice (demo mode). */
     fallbackMarkPrice: number;
+    /** Sell exactly this many tokens. When set (recommended for the
+     *  CloseButton flow), avoids sweeping unrelated dust or a separate
+     *  position in the same mint. Null/omit falls back to sellAll
+     *  (drains the wallet for that mint — panic-close semantics). */
+    tokenAmount?: number | null;
     /** When set, the runtime persists via
      *  POST /api/proposals/<id>/sell-confirm so the SELL Proposal flips
      *  status=EXECUTED and the Trade row carries the proposal id. */

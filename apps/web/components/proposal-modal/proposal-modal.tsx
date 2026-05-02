@@ -20,6 +20,7 @@ import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { type ChartBar } from '@/components/charts/mini-chart';
 import { usePersistOrder, useSkipProposal } from '@/lib/hooks/mutations';
 import { usePortfolio } from '@/lib/hooks/queries';
+import { fmtUsd, num } from '@/lib/utils/fmt';
 import { ProposalHeader } from './proposal-header';
 import { ProposalForm } from './proposal-form';
 import { SkipFlow } from './skip-flow';
@@ -196,15 +197,14 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
         return;
       }
 
-      const placed = await placeBuy({
-        outputMint: meta.mint,
-        usdAmount: size,
-        triggerPriceUsd: trigger,
-        triggerCondition: trigger < proposal!.priceAtProposal ? 'below' : 'above',
-        slippageBps: 50,
-        expiresAt: Math.floor(new Date(proposal!.expiresAt).getTime() / 1000),
-      });
-
+      // xStocks aren't on Jupiter Trigger v2's allowlist (Backed Finance
+      // tokens, traded only on a few Solana DEXs Jupiter Ultra aggregates).
+      // So we don't deposit into Jupiter's vault on Approve — instead we
+      // record an intent in our DB. The ws-server price monitor watches
+      // Pyth for the trigger condition; when it hits, we push a socket
+      // event to the user's desk and they tap-to-execute via Jupiter
+      // Ultra (see use-jupiter-swap). Future: server-side delegated
+      // signer auto-executes when Privy Pro is enabled.
       const persistJson = await persistOrder.mutateAsync({
         walletAddress: walletKey,
         proposalId: proposal!.id,
@@ -213,8 +213,10 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
         side: 'BUY',
         triggerPriceUsd: trigger,
         sizeUsd: size,
-        jupiterOrderId: placed.id,
-        txSignature: placed.txSignature,
+        // No jupiterOrderId — this is a synthetic / off-chain trigger,
+        // not a Jupiter Trigger v2 order.
+        jupiterOrderId: null,
+        txSignature: null,
         slippageBps: 50,
         createPosition: {
           mint: meta.mint,
@@ -225,7 +227,7 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
       });
 
       toast.success(
-        `BUY ${proposal!.ticker} trigger order placed. Vault deposit: ${placed.txSignature.slice(0, 8)}…`,
+        `BUY ${proposal!.ticker} watching for $${trigger.toFixed(2)}. We'll ping you when price hits.`,
         {
           action: persistJson.positionId
             ? {
@@ -306,12 +308,14 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
               // button stays clickable. We only block on a confirmed
               // shortfall.
               const portfolioReady = !portfolioQuery.isLoading;
-              const insufficient = !isDemo() && portfolioReady && size > cashUsd;
+              const sizeNum = num(size);
+              const cashNum = num(cashUsd);
+              const insufficient = !isDemo() && portfolioReady && sizeNum > cashNum;
               return (
                 <>
                   {insufficient && (
                     <div className="mb-3 rounded-lg border border-negative/40 bg-negative/10 px-3 py-2 text-body-sm text-negative">
-                      Insufficient USDC. You have ${cashUsd.toFixed(2)}, this order needs ${size.toFixed(2)}.{' '}
+                      Insufficient USDC. You have {fmtUsd(cashNum)}, this order needs {fmtUsd(sizeNum)}.{' '}
                       <a
                         href="/desk#deposit-section"
                         onClick={() => onClose(null)}

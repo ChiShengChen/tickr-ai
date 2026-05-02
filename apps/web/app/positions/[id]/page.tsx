@@ -44,8 +44,7 @@ export default function PositionDetailPage() {
   );
   const { cancelExits, placeOcoExit, replaceExits } = useExitOrders();
   const runtime = useRuntime();
-  const { address: _address } = useWallet();
-  void _address;
+  const { address: walletAddress } = useWallet();
 
   const [bars, setBars] = useState<ChartBar[]>([]);
   const [tpDraft, setTpDraft] = useState('');
@@ -173,15 +172,21 @@ export default function PositionDetailPage() {
         toast.error('TP / SL prices missing.');
         return;
       }
-      // v2 native OCO: one Jupiter order covers both TP and SL.
+      if (!walletAddress) {
+        toast.error('Wallet not connected.');
+        return;
+      }
+      // Synthetic exits: two DB rows, no Jupiter call. ws-server's
+      // trigger-monitor watches them against Pyth.
       const placed = await placeOcoExit({
-        inputMint: meta.mint,
-        inputDecimals: meta.decimals,
+        positionId: position!.id,
+        walletAddress,
+        ticker: position!.ticker,
         tokenAmount: position!.tokenAmount,
         tpPriceUsd: position!.currentTpPrice,
         slPriceUsd: position!.currentSlPrice,
       });
-      toast.success(`OCO ${placed.id.slice(0, 8)}… placed (TP + SL).`);
+      toast.success(`Exits ${placed.id.slice(0, 8)}… placed (TP + SL).`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -232,12 +237,17 @@ export default function PositionDetailPage() {
           toast.error(`${position.ticker} mint not configured.`);
           return;
         }
-        await replaceExits(
-          position.id,
-          { mint: meta.mint, decimals: meta.decimals },
-          position.tokenAmount,
-          { tpPriceUsd: tp, slPriceUsd: sl },
-        );
+        if (!walletAddress) {
+          toast.error('Wallet not connected.');
+          return;
+        }
+        await replaceExits({
+          positionId: position.id,
+          walletAddress,
+          ticker: position.ticker,
+          tokenAmount: position.tokenAmount,
+          next: { tpPriceUsd: tp, slPriceUsd: sl },
+        });
         adjustTpSl(position.id, tp, sl);
         toast.success('TP / SL re-placed.');
         return;

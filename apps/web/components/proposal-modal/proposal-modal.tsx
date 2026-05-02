@@ -14,7 +14,6 @@ import {
 } from '@hunch-it/shared';
 import { useRouter } from 'next/navigation';
 import { useWallet } from '@/lib/wallet/use-wallet';
-import { useJupiterTrigger } from '@/lib/jupiter/use-jupiter-trigger';
 import { isDemo } from '@/lib/demo';
 import { useDemoPositionsStore } from '@/lib/store/demo-positions';
 import { type ChartBar } from '@/components/charts/mini-chart';
@@ -49,7 +48,6 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
   const { publicKey } = useWallet();
   const router = useRouter();
   const addPosition = useDemoPositionsStore((s) => s.addFromProposal);
-  const { placeBuy, loading: triggerLoading } = useJupiterTrigger();
   const persistOrder = usePersistOrder();
   const skipProposal = useSkipProposal();
   // cashUsd is the user's USDC balance read by /api/portfolio. We use it
@@ -342,17 +340,13 @@ export function ProposalModal({ proposal, fallbackId, onClose }: ProposalModalPr
                       onClick={() => void handlePlace()}
                     >
                       {executing
-                        ? triggerLoading === 'vault'
-                          ? 'Fetching vault…'
-                          : triggerLoading === 'craft'
-                            ? 'Building deposit…'
-                            : triggerLoading === 'sign' || swapLoading === 'sign'
-                              ? 'Awaiting signature…'
-                              : triggerLoading === 'submit' || swapLoading === 'execute'
-                                ? 'Submitting order…'
-                                : swapLoading === 'order'
-                                  ? 'Quoting…'
-                                  : 'Placing…'
+                        ? swapLoading === 'sign'
+                          ? 'Awaiting signature…'
+                          : swapLoading === 'execute'
+                            ? 'Submitting order…'
+                            : swapLoading === 'order'
+                              ? 'Quoting…'
+                              : 'Placing…'
                         : insufficient
                           ? 'Insufficient USDC'
                           : 'Place trigger order'}

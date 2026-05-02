@@ -58,18 +58,26 @@ export function useRuntime(): Runtime {
       isDemo: false,
       cancelExits: (positionId: string): Promise<RuntimeExitSnapshot> =>
         cancelExits(positionId),
-      placeOcoExit: async ({ meta, tokenAmount, tpPriceUsd, slPriceUsd }) => {
+      placeOcoExit: async ({
+        positionId,
+        walletAddress,
+        ticker,
+        tokenAmount,
+        tpPriceUsd,
+        slPriceUsd,
+      }) => {
         const r = await placeOcoExit({
-          inputMint: meta.mint,
-          inputDecimals: meta.decimals,
+          positionId,
+          walletAddress,
+          ticker,
           tokenAmount,
           tpPriceUsd,
           slPriceUsd,
         });
         return { id: r.id };
       },
-      replaceExits: ({ positionId, meta, tokenAmount, next }) =>
-        replaceExits(positionId, meta, tokenAmount, next),
+      replaceExits: ({ positionId, walletAddress, ticker, tokenAmount, next }) =>
+        replaceExits({ positionId, walletAddress, ticker, tokenAmount, next }),
       closePosition: async ({
         positionId,
         meta,

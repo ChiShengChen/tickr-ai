@@ -70,9 +70,16 @@ export interface CraftDepositRequest {
   /** Mint of the asset being deposited into the vault (USDC for BUY, the
    *  xStock mint for SELL/TP/SL). */
   inputMint: string;
-  /** Smallest-units of inputMint as a string (avoid number-precision
-   *  loss; spec requires string). */
-  inputAmount: string;
+  /** Mint we're trading into. Required by Jupiter even on the deposit
+   *  step so it can pre-validate the eventual order shape. */
+  outputMint: string;
+  /** Smallest-units of inputMint as a numeric string (Jupiter requires
+   *  string to avoid number-precision loss on large 9-decimal token
+   *  amounts; field name is `amount`, not `inputAmount`). */
+  amount: string;
+  /** User's Solana wallet address (Jupiter checks ownership against
+   *  the JWT, but still needs the address echoed in the body). */
+  userAddress: string;
 }
 
 export interface CraftDepositResponse {

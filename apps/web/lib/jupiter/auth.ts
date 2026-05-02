@@ -115,11 +115,13 @@ export async function getJupiterJwt(input: JupiterAuthInput): Promise<string> {
   const signature = await input.signMessage(challenge.challenge);
 
   // 3. Send the signature back to verify and exchange for a JWT.
+  // Jupiter requires the same `type` echoed back for shape validation.
   const verifyRes = await fetch(jupiterUrl(VERIFY_PATH), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       walletPubkey: input.walletAddress,
+      type: 'message',
       signature,
       ...(challenge.challengeId ? { challengeId: challenge.challengeId } : {}),
     }),

@@ -142,7 +142,12 @@ export function useJupiterTrigger() {
       setLoading('craft');
       const { USDC_MINT } = await import('@hunch-it/shared');
       const craft = await craftDeposit(
-        { inputMint: USDC_MINT, inputAmount },
+        {
+          inputMint: USDC_MINT,
+          outputMint: args.outputMint,
+          amount: inputAmount,
+          userAddress: address,
+        },
         carrier,
       );
 
@@ -201,8 +206,16 @@ export function useJupiterTrigger() {
       const vault = await getVault(carrier);
 
       setLoading('craft');
+      const { USDC_MINT } = await import('@hunch-it/shared');
       const craft = await craftDeposit(
-        { inputMint: args.inputMint, inputAmount },
+        {
+          inputMint: args.inputMint,
+          // SELL OCO: output is USDC; we deposit the xStock and the vault
+          // sells it back into USDC when TP or SL fires.
+          outputMint: USDC_MINT,
+          amount: inputAmount,
+          userAddress: address,
+        },
         carrier,
       );
 

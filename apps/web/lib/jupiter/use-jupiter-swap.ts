@@ -10,7 +10,6 @@ import {
   USDC_MINT,
 } from '@hunch-it/shared';
 import {
-  executeUltraOrder,
   requestUltraOrder,
   type UltraExecuteResponse,
   type UltraOrderResponse,
@@ -32,6 +31,8 @@ function fromBase64(str: string): Uint8Array {
   for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
   return arr;
 }
+// toBase64 retained for potential future Ultra /execute fallback path.
+void toBase64;
 
 export interface SwapResult {
   order: UltraOrderResponse;
@@ -73,7 +74,7 @@ export type SwapArgs = BuyArgs | SellArgs;
  */
 export function useJupiterSwap() {
   const { connection } = useConnection();
-  const { publicKey, signTransaction } = useWallet();
+  const { publicKey, signAndSendTransaction } = useWallet();
   const [loading, setLoading] = useState<'order' | 'sign' | 'execute' | null>(null);
   const [lastOrder, setLastOrder] = useState<UltraOrderResponse | null>(null);
 
@@ -122,7 +123,7 @@ export function useJupiterSwap() {
         };
       }
 
-      if (!publicKey || !signTransaction) throw new Error('Wallet not connected');
+      if (!publicKey || !signAndSendTransaction) throw new Error('Wallet not connected');
       if (!args.xStockMint) throw new Error('xStock mint address is empty');
 
       let inputMint: string;
@@ -165,13 +166,22 @@ export function useJupiterSwap() {
       setLoading('sign');
       const txBytes = fromBase64(order.transaction);
       const tx = VersionedTransaction.deserialize(txBytes);
-      const signed = await signTransaction(tx);
 
+      // Pivot away from Jupiter Ultra `/execute` (which would relay via
+      // Ultra's MEV-protected bundler) because Privy v3's signTransaction
+      // hook always pops a confirmation modal whose internal tx-introspection
+      // borsh decoder crashes on Ultra's multi-hop / ALT layout
+      // ("t.slice is not a function"), greying out Approve and trapping
+      // the user. signAndSendTransaction goes through `useSendTransaction`,
+      // which honours `uiOptions.showWalletUIs=false` and skips the modal,
+      // broadcasting through Privy's RPC. Fine for the v1 hackathon UX;
+      // we lose Ultra's bundling but preserve the route Ultra picked.
       setLoading('execute');
-      const exec = await executeUltraOrder({
-        requestId: order.requestId,
-        signedTransaction: toBase64(signed.serialize()),
-      });
+      const sent = await signAndSendTransaction(tx);
+      const exec: UltraExecuteResponse = {
+        status: 'Success',
+        signature: sent.signature,
+      };
 
       setLoading(null);
       return {
@@ -183,7 +193,7 @@ export function useJupiterSwap() {
         outputAmount: order.outAmount,
       };
     },
-    [connection, publicKey, signTransaction],
+    [connection, publicKey, signAndSendTransaction],
   );
 
   return { swap, loading, lastOrder };

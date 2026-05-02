@@ -61,22 +61,30 @@ export function useExitOrders() {
           triggerPriceUsd: number | null;
         }>;
       };
-      const open = (j.orders ?? []).filter(
-        (o): o is typeof o & { jupiterOrderId: string } =>
+      const exits = (j.orders ?? []).filter(
+        (o) =>
           o.positionId === positionId &&
-          (o.kind === 'TAKE_PROFIT' || o.kind === 'STOP_LOSS') &&
-          !!o.jupiterOrderId,
+          (o.kind === 'TAKE_PROFIT' || o.kind === 'STOP_LOSS'),
       );
+      // Jupiter-routed (legacy v2 OCO) vs synthetic (xStock pivot — no
+      // jupiterOrderId, lifecycle owned by ws-server's trigger-monitor).
+      // Both must be cancelled to avoid zombie trigger:hit toasts after
+      // a manual close.
+      const jupiterRouted = exits.filter(
+        (o): o is typeof o & { jupiterOrderId: string } => !!o.jupiterOrderId,
+      );
+      const synthetic = exits.filter((o) => !o.jupiterOrderId);
 
-      // OCO: TP and SL share one jupiterOrderId. We cancel the Jupiter
-      // order once per unique id, then mark both DB rows cancelled.
-      const uniqueJupiterIds = Array.from(new Set(open.map((o) => o.jupiterOrderId)));
       let tpPriceUsd: number | null = null;
       let slPriceUsd: number | null = null;
-      for (const o of open) {
+      for (const o of exits) {
         if (o.kind === 'TAKE_PROFIT' && o.triggerPriceUsd != null) tpPriceUsd = o.triggerPriceUsd;
         if (o.kind === 'STOP_LOSS' && o.triggerPriceUsd != null) slPriceUsd = o.triggerPriceUsd;
       }
+
+      // OCO: TP and SL share one jupiterOrderId. Cancel the Jupiter
+      // order once per unique id.
+      const uniqueJupiterIds = Array.from(new Set(jupiterRouted.map((o) => o.jupiterOrderId)));
       for (const jid of uniqueJupiterIds) {
         try {
           await cancelTrigger(jid);
@@ -86,8 +94,11 @@ export function useExitOrders() {
           );
         }
       }
-      // Then mark every linked DB Order row CANCELLED.
-      for (const o of open) {
+
+      // Mark every linked DB Order row CANCELLED. For synthetic orders
+      // this is the only step — no Jupiter call needed since they were
+      // never escrowed off-chain in the first place.
+      for (const o of [...jupiterRouted, ...synthetic]) {
         await authedFetch(`/api/orders/${o.id}/cancel`, { method: 'POST' }).catch(() => {});
       }
       return { tpPriceUsd, slPriceUsd };

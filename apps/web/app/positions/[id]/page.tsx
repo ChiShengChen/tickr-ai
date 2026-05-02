@@ -12,6 +12,7 @@ import { useWallet } from '@/lib/wallet/use-wallet';
 import { MiniChart, type ChartBar } from '@/components/charts/mini-chart';
 import { useExitOrders } from '@/lib/jupiter/use-exit-orders';
 import { useRuntime } from '@/lib/runtime/use-runtime';
+import { usePosition } from '@/lib/hooks/queries';
 import { PositionStats } from '@/components/positions/position-stats';
 import { CancelSiblingBanner, EnterBanner } from '@/components/positions/banners';
 import { AdjustTpSlForm } from '@/components/positions/adjust-tpsl-form';
@@ -30,7 +31,7 @@ export default function PositionDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const demo = isDemo();
-  const position = useDemoPositionsStore((s) =>
+  const demoPosition = useDemoPositionsStore((s) =>
     params?.id ? s.positions.find((p) => p.id === params.id) ?? null : null,
   );
   const adjustTpSl = useDemoPositionsStore((s) => s.adjustTpSl);
@@ -50,6 +51,42 @@ export default function PositionDetailPage() {
   const [tpDraft, setTpDraft] = useState('');
   const [slDraft, setSlDraft] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // Live mode: read from /api/positions/[id]. Demo mode: useDemoPositionsStore
+  // owns the data. We unify into the shape the page uses (markPrice overlaid
+  // from the most recent bar, since the API returns DB state only).
+  const livePositionQuery = usePosition(params?.id);
+  const livePosition = livePositionQuery.data ?? null;
+  const liveMarkPrice =
+    bars.length > 0 ? (bars[bars.length - 1]?.close ?? null) : null;
+  const position = useMemo(() => {
+    if (demo) return demoPosition;
+    if (!livePosition) return null;
+    return {
+      id: livePosition.id,
+      proposalId: null,
+      ticker: livePosition.ticker,
+      mint: livePosition.mint,
+      state: livePosition.state as
+        | 'BUY_PENDING'
+        | 'ENTERING'
+        | 'ACTIVE'
+        | 'CLOSING'
+        | 'CLOSED',
+      tokenAmount: livePosition.tokenAmount,
+      entryPrice: livePosition.entryPrice,
+      totalCost: livePosition.totalCost,
+      // markPrice has no DB column; fall back to entryPrice when bars
+      // haven't loaded yet so PnL displays as 0% rather than NaN.
+      markPrice: liveMarkPrice ?? livePosition.entryPrice,
+      currentTpPrice: livePosition.currentTpPrice,
+      currentSlPrice: livePosition.currentSlPrice,
+      firstEntryAt: livePosition.firstEntryAt,
+      closedAt: livePosition.closedAt,
+      closedReason: livePosition.closedReason,
+      realizedPnl: livePosition.realizedPnl,
+    };
+  }, [demo, demoPosition, livePosition, liveMarkPrice]);
 
   useEffect(() => {
     if (!position) return;
